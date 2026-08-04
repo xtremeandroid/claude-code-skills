@@ -1,0 +1,12 @@
+{
+  "name": "claude-code-skills",
+  "owner": {
+    "name": "ayush",
+    "email": "xtremeandpvt@gmail.com"
+  },
+  "metadata": {
+    "description": "A personal marketplace of Claude Code plugins and skills.",
+    "version": "0.1.0"
+  },
+  "plugins": []
+}
