@@ -1,0 +1,9 @@
+{
+  "name": "job-helper",
+  "description": "AI-powered job search assistant for Indian professionals: searches 12+ job boards, generates ATS-optimized resumes, scores keyword match, and tracks applications.",
+  "version": "0.1.0",
+  "author": {
+    "name": "ayush",
+    "email": "xtremeandpvt@gmail.com"
+  }
+}

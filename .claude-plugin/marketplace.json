@@ -8,5 +8,11 @@
     "description": "A personal marketplace of Claude Code plugins and skills.",
     "version": "0.1.0"
   },
-  "plugins": []
+  "plugins": [
+    {
+      "name": "job-helper",
+      "source": "./plugins/job-helper",
+      "description": "AI-powered job search assistant for Indian professionals: searches 12+ job boards, generates ATS-optimized resumes, scores keyword match, and tracks applications."
+    }
+  ]
 }
