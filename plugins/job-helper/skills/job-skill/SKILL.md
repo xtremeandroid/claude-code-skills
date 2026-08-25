@@ -1,10 +1,11 @@
 ---
 name: job-skill
 description: >
-  AI-powered job search assistant for Indian professionals. Searches 12+ Indian and global
+  AI-powered job search assistant for Indian professionals. Browses 12+ Indian and global
   job platforms (Naukri, LinkedIn, Instahyre, Cutshort, Hirist, Indeed India, Foundit, Shine,
-  TimesJobs, Glassdoor, WeWorkRemotely, AngelList), generates ATS-optimized resumes tailored
-  to each job posting, scores keyword match, tracks applications, and automates nightly searches.
+  TimesJobs, Glassdoor, WeWorkRemotely, AngelList) in the user's own Chrome session via Claude
+  in Chrome, generates ATS-optimized resumes tailored to each job posting, scores keyword match,
+  tracks applications, and automates nightly searches.
   Commands: /job-skill help | /job-skill search | /job-skill automate | /job-skill status
   Trigger on: /job-skill, job search, find jobs, apply to jobs, resume help, career search,
   naukri, job hunt, interview prep.
@@ -57,7 +58,7 @@ Display this usage guide and stop. Do NOT proceed to search or apply — just sh
 **4 Commands:**
 
 - `/job-skill help` — You're reading it. Shows all capabilities.
-- `/job-skill search` — Search 12+ job platforms for roles matching your profile. For every match found, it automatically generates an ATS-optimized resume tailored to that specific job + a cover letter. Returns: Job Title, Job ID, Platform, Posting Date, Fitness Score (how well YOUR experience fits this role), Resume (ready to download), Cover Letter (ready to download), and Direct Apply Link — all bundled in a zip.
+- `/job-skill search` — Opens your Chrome browser and searches 12+ job platforms for roles matching your profile — using your own logged-in sessions, so it sees the same live listings you would. For every match found, it automatically generates an ATS-optimized resume tailored to that specific job + a cover letter. Returns: Job Title, Job ID, Platform, Posting Date, Fitness Score (how well YOUR experience fits this role), Resume (ready to download), Cover Letter (ready to download), and Direct Apply Link — all bundled in a zip.
 - `/job-skill automate` — Set up a nightly automated search that runs while you sleep. Delivers a morning report with matches + ready-to-download resumes and cover letters.
 - `/job-skill status` — Check the status of your applications. Connects to Gmail to automatically detect rejections, interview invites, and acknowledgments. Falls back to manual tracking if Gmail isn't connected.
 
@@ -73,9 +74,9 @@ Display this usage guide and stop. Do NOT proceed to search or apply — just sh
 Naukri, LinkedIn India, Instahyre, Cutshort, Hirist, Indeed India, Foundit (Monster India), Shine, TimesJobs, Glassdoor India, AngelList/Wellfound, WeWorkRemotely + direct company career pages
 
 **What it does:**
-1. Searches 12+ platforms simultaneously for jobs matching your exact skills
+1. Browses 12+ platforms in your own Chrome session for jobs matching your exact skills
 2. Scores and ranks every result (skill match, seniority fit, salary range, company type)
-3. Verifies every link is live — no expired or dead listings
+3. Every link is one it actually opened — no expired or dead listings
 4. For EVERY match: generates an ATS-optimized resume tailored to THAT specific job description (each resume is different — not one generic resume)
 5. For EVERY match: writes a tailored cover letter mapping YOUR experience to THAT job's requirements
 6. ATS keyword optimization built into every resume — auto-rewrites until keywords match
@@ -84,6 +85,8 @@ Naukri, LinkedIn India, Instahyre, Cutshort, Hirist, Indeed India, Foundit (Mons
 9. Tracks all applications in a spreadsheet with status updates
 10. Connects to Gmail to auto-detect outcomes (rejections, interview invites, assessment links)
 11. Runs a weekly self-correction review — adjusts strategy based on what's working
+
+**Browser use:** It drives your Chrome read-only — opens tabs, reads listings, closes them. It never applies, never logs in, never touches your account settings. Requires the Claude in Chrome extension with permission for these sites.
 
 **Privacy:** Your data stays in this session. Gmail integration (optional) only reads emails from companies you've applied to — nothing else.
 
@@ -112,38 +115,57 @@ If running as a scheduled task or unattended session:
 - Posted in last 24h / 48h / 7 days?
 - CTC range filter?
 
-Then run the search across ALL platforms:
+Then run the search across ALL platforms.
+
+#### How Searching Works — Chrome Mode
+
+Jobs are found by **driving the user's own Chrome browser**, not by web search. This is what makes results real: the user is already logged into Naukri and LinkedIn, so their session sees live listings, applied/saved state, and recruiter-visible detail that a search engine never returns.
+
+Before any browser tool call, invoke the `claude-in-chrome` skill. Then, per platform:
+
+1. `tabs_context_mcp` once at the start of a search to see existing tabs — never reuse a tab ID from an earlier session.
+2. `tabs_create_mcp` + `navigate` to the platform's search URL with the user's skill/role/city filled in (patterns below).
+3. `get_page_text` to read the results list. Use `read_page` or `computer` screenshots only when the text extraction is unusable (heavy JS, infinite scroll).
+4. If the URL pattern lands on a generic page instead of results, use `find` + `form_input` to type the query into the site's own search box and submit.
+5. Scroll with `computer` to load more results where the list is lazy-loaded — take 2-3 passes, then stop.
+6. Open promising listings in the same tab to pull the full JD, job ID, and posted date, then go back.
+7. `tabs_close_mcp` every tab you opened when the platform is done. Leave the user's browser as you found it.
+
+**Rules:**
+- Run platforms **sequentially**, not in parallel — one tab at a time keeps the browser responsive and avoids rate-limiting.
+- If a platform demands login, shows a CAPTCHA, or blocks the extension: skip it silently and continue. Never enter credentials, never solve a CAPTCHA, never create an account.
+- Never trigger `alert`/`confirm` dialogs — avoid clicking "Apply", "Save", "Delete", or anything that mutates the user's account state. This is a read-only crawl.
+- If a platform fails twice, drop it and move on. Note it once at the end of the report if it materially cut the result count.
+- If the Chrome extension isn't connected at all, say so once and stop — don't silently fall back to guessing listings.
 
 #### Platforms Searched
 
 **Indian Job Boards (Primary):**
 
-| # | Platform | How It's Searched | What It's Best For |
-|---|----------|-------------------|-------------------|
-| 1 | **Naukri.com** | `site:naukri.com "[skill]" "[role]" "[city]"` via WebSearch | Largest Indian job board, most IT/tech listings. Has job IDs (Naukri Job ID). |
-| 2 | **LinkedIn India** | `site:linkedin.com/jobs "[role]" "[skill]" India OR "[city]"` via WebSearch | MNC and product company roles. LinkedIn Job IDs visible in URL. |
-| 3 | **Instahyre** | `site:instahyre.com "[skill]" "[role]"` via WebSearch | Curated product-company jobs, invite-only. Good for mid-senior roles. |
-| 4 | **Cutshort** | `site:cutshort.io "[skill]" "[role]"` via WebSearch | Startup and product company focus. Direct founder connections. |
-| 5 | **Hirist** | `site:hirist.tech "[skill]" "[role]"` via WebSearch | Premium tech jobs. Good for experienced candidates. |
-| 6 | **Indeed India** | `site:in.indeed.com "[skill]" "[role]" "[city]"` via WebSearch | Aggregator — catches listings from smaller companies. |
-| 7 | **Foundit (Monster India)** | `site:foundit.in "[skill]" "[role]"` via WebSearch | Legacy platform, still has good MNC listings. |
-| 8 | **Shine.com** | `site:shine.com "[skill]" "[role]"` via WebSearch | HindustanTimes job portal, decent for mid-level roles. |
-| 9 | **TimesJobs** | `site:timesjobs.com "[skill]" "[role]"` via WebSearch | TimeOfIndia's job portal, good volume. |
-| 10 | **Glassdoor India** | `site:glassdoor.co.in/job "[role]" "[skill]"` via WebSearch | Salary data + reviews alongside listings. |
+| # | Platform | Search URL | What It's Best For |
+|---|----------|------------|-------------------|
+| 1 | **Naukri.com** | `naukri.com/[skill]-jobs-in-[city]` | Largest Indian job board, most IT/tech listings. Job ID on each listing page. |
+| 2 | **LinkedIn India** | `linkedin.com/jobs/search/?keywords=[role]&location=[city]&f_TPR=r86400` | MNC and product roles. `f_TPR=r86400` = last 24h. Job ID is in the listing URL. |
+| 3 | **Instahyre** | `instahyre.com/search-jobs/` then filter in-page | Curated product-company jobs. Needs the user's login — skip if logged out. |
+| 4 | **Cutshort** | `cutshort.io/jobs/[skill]-jobs-in-[city]` | Startup and product company focus. Direct founder connections. |
+| 5 | **Hirist** | `hirist.tech` search box → `[skill] [role]` | Premium tech jobs. Good for experienced candidates. |
+| 6 | **Indeed India** | `in.indeed.com/jobs?q=[role]&l=[city]&fromage=1` | Aggregator — catches smaller companies. `fromage` = days old. |
+| 7 | **Foundit (Monster India)** | `foundit.in/srp/results?query=[role]&locations=[city]` | Legacy platform, still has good MNC listings. |
+| 8 | **Shine.com** | `shine.com/job-search/[role]-jobs-in-[city]` | HindustanTimes job portal, decent for mid-level roles. |
+| 9 | **TimesJobs** | `timesjobs.com/candidate/job-search.html?txtKeywords=[skill]&txtLocation=[city]` | TimesOfIndia's portal, good volume. |
+| 10 | **Glassdoor India** | `glassdoor.co.in/Job/index.htm` → search box | Salary data + reviews alongside listings. |
 
 **Startup & Remote Platforms:**
 
-| # | Platform | How It's Searched | What It's Best For |
-|---|----------|-------------------|-------------------|
-| 11 | **AngelList / Wellfound** | `site:wellfound.com "[skill]" "[role]" India` via WebSearch | Funded startups, equity-included roles. |
-| 12 | **WeWorkRemotely** | `site:weworkremotely.com "[skill]"` via WebSearch | Remote roles paying in USD/EUR — best for senior devs. |
+| # | Platform | Search URL | What It's Best For |
+|---|----------|------------|-------------------|
+| 11 | **AngelList / Wellfound** | `wellfound.com/jobs?query=[role]&location=India` | Funded startups, equity-included roles. |
+| 12 | **WeWorkRemotely** | `weworkremotely.com/remote-jobs/search?term=[skill]` | Remote roles paying in USD/EUR — best for senior devs. |
+
+URL patterns drift as sites change. If one lands on a homepage or an empty state, fall back to the site's own search box (`find` + `form_input`) rather than abandoning the platform.
 
 **Direct Company Career Pages (Channel 13):**
-Based on the user's preferences, also search career pages of 8-10 target companies directly:
-```
-site:[company].com/careers "[skill]" OR "[role]"
-"[company name]" careers "[skill]" India OR "[city]"
-```
+Based on the user's preferences, navigate directly to the careers page of 8-10 target companies (`[company].com/careers` or their Greenhouse/Lever/Workday board), search in-page for the user's role and city, and read the openings. These are the highest-signal listings — no aggregator lag, no expired posts.
 
 Good targets by company type:
 - **FAANG/Big Tech**: Google, Microsoft, Amazon, Meta, Apple, Netflix
@@ -155,7 +177,7 @@ Good targets by company type:
 **If user is also looking abroad**, additionally search:
 - Arbeitnow, Relocate.me, Jaabz (visa-sponsorship confirmed platforms)
 - Country-specific boards (Seek for Australia, StepStone for Germany, Reed for UK, Bayt for UAE)
-- Use the same search patterns but with the target country
+- Same approach — navigate each board in Chrome with the target country as the location filter
 
 #### Result Format (CRITICAL)
 
@@ -242,7 +264,7 @@ For EVERY job in the results (not just top ones):
 
 **Cover letter generation:**
 1. Mirror 3-5 keywords from the JD
-2. Opening: Why this specific company (brief web research on recent company news/achievements)
+2. Opening: Why this specific company (pull recent news/achievements from the company's own site or the JD page while you're already in Chrome)
 3. Middle: Map 2-3 of the user's achievements directly to job requirements
 4. Closing: Enthusiasm + availability (notice period, relocation readiness if applicable)
 5. Under 300 words
@@ -252,10 +274,10 @@ For EVERY job in the results (not just top ones):
 
 #### Link Quality Rules (CRITICAL)
 
-1. Use WebFetch on each job URL to confirm it loads (200 status)
-2. Drop any link returning 404, 403, "job not found", or "position filled"
-3. If direct link unavailable but job is real, provide careers page + exact job title + Job ID
-4. Never show a link you haven't verified this session
+1. Every link must be one you actually opened in Chrome during this search — the URL of a listing page you read, not a constructed or remembered one
+2. Drop anything that showed 404, "job not found", "position filled", or an expired banner
+3. If a listing has no stable direct URL, provide the careers page + exact job title + Job ID instead
+4. Never show a link you haven't loaded this session
 5. Flag postings older than 30 days as "⚠️ Possibly expired — verify before applying"
 
 ---
@@ -354,7 +376,9 @@ Set up a nightly automated job search. Walk the user through:
    - 12:00 AM IST = 6:30 PM UTC → `30 18 * * *`
    - Weekdays only: add `1-5` as day-of-week
 
-4. **The scheduled task prompt** must include:
+4. **Warn about the browser requirement:** the nightly run drives Chrome, so Chrome must be running with the Claude in Chrome extension enabled and the user logged into their job portals at that hour. A sleeping/closed laptop means no results. Suggest a time when the machine is awake, and mention that portals may log them out over time — a session that finds nothing on several platforms usually means the logins expired.
+
+5. **The scheduled task prompt** must include:
    - The user's full profile and preferences (each firing starts a fresh session)
    - Instructions to run `/job-skill search` in unattended mode
    - Generate resume + cover letter for top matches
@@ -363,7 +387,7 @@ Set up a nightly automated job search. Walk the user through:
    - If Gmail is connected, run `/job-skill status` too
    - Send the morning report
 
-5. **Confirm:**
+6. **Confirm:**
    "Your nightly job search is live — runs at 11:30 PM IST every day. You'll wake up to a report with matched jobs, tailored resumes, and apply links. Say 'update my job schedule' or 'cancel automation' anytime."
 
 ---
@@ -419,7 +443,7 @@ Every resume is automatically ATS-optimized before delivery. This happens behind
 
 For each application:
 1. Mirror 3-5 keywords from the JD
-2. Opening: Why this specific company (brief web research)
+2. Opening: Why this specific company (from its site or the JD page)
 3. Middle: Map 2-3 of user's achievements to the job requirements
 4. Closing: Enthusiasm + availability (notice period, relocation readiness)
 5. Under 300 words
@@ -493,8 +517,9 @@ Whenever `/job-skill status` (or the nightly pipeline) detects rejections via Gm
 ## Nightly Pipeline (Scheduled Task)
 
 ### Phase 1: Search
-- Search ALL 12+ platforms for jobs posted in last 24 hours
-- Score, rank, deduplicate, verify all links
+- Browse ALL 12+ platforms in Chrome for jobs posted in last 24 hours (use each site's 24h filter where it has one)
+- If Chrome isn't reachable, report that instead of an empty search — don't fabricate listings
+- Score, rank, deduplicate; close every tab opened
 
 ### Phase 2: Generate Materials
 - For top matches (Fitness >= 60%): generate tailored resume + cover letter per job
@@ -536,8 +561,8 @@ TRACKER: [xlsx attached]
 ```
 
 ### What It Does NOT Do
-- Does NOT submit applications (CAPTCHAs, OTPs, logins)
-- Does NOT create accounts on portals
+- Does NOT submit applications (CAPTCHAs, OTPs, logins) — the browsing is strictly read-only
+- Does NOT log in, create accounts, or click Apply/Save on any portal
 - User reviews morning report and submits manually (~10 min)
 
 ## Output Cleanliness (CRITICAL)
