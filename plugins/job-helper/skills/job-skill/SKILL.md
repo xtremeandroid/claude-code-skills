@@ -4,8 +4,8 @@ description: >
   AI-powered job search assistant for Indian professionals. Browses 12+ Indian and global
   job platforms (Naukri, LinkedIn, Instahyre, Cutshort, Hirist, Indeed India, Foundit, Shine,
   TimesJobs, Glassdoor, WeWorkRemotely, AngelList) in the user's own Chrome session via Claude
-  in Chrome, generates ATS-optimized resumes tailored to each job posting, scores keyword match,
-  tracks applications, and automates nightly searches.
+  in Chrome via parallel subagent scouts, generates ATS-optimized resumes tailored to each job
+  posting, scores keyword match, tracks applications, and automates nightly searches.
   Commands: /job-skill help | /job-skill search | /job-skill automate | /job-skill status
   Trigger on: /job-skill, job search, find jobs, apply to jobs, resume help, career search,
   naukri, job hunt, interview prep.
@@ -58,7 +58,7 @@ Display this usage guide and stop. Do NOT proceed to search or apply — just sh
 **4 Commands:**
 
 - `/job-skill help` — You're reading it. Shows all capabilities.
-- `/job-skill search` — Opens your Chrome browser and searches 12+ job platforms for roles matching your profile — using your own logged-in sessions, so it sees the same live listings you would. For every match found, it automatically generates an ATS-optimized resume tailored to that specific job + a cover letter. Returns: Job Title, Job ID, Platform, Posting Date, Fitness Score (how well YOUR experience fits this role), Resume (ready to download), Cover Letter (ready to download), and Direct Apply Link — all bundled in a zip.
+- `/job-skill search` — Fans out four parallel scouts across your Chrome browser and searches 12+ job platforms for roles matching your profile — using your own logged-in sessions, so it sees the same live listings you would. Parallel scouts mean it goes many pages deep on every platform instead of skimming page one. For every match found, it automatically generates an ATS-optimized resume tailored to that specific job + a cover letter. Returns: Job Title, Job ID, Platform, Posting Date, Fitness Score (how well YOUR experience fits this role), Resume (ready to download), Cover Letter (ready to download), and Direct Apply Link — all bundled in a zip.
 - `/job-skill automate` — Set up a nightly automated search that runs while you sleep. Delivers a morning report with matches + ready-to-download resumes and cover letters.
 - `/job-skill status` — Check the status of your applications. Connects to Gmail to automatically detect rejections, interview invites, and acknowledgments. Falls back to manual tracking if Gmail isn't connected.
 
@@ -74,7 +74,7 @@ Display this usage guide and stop. Do NOT proceed to search or apply — just sh
 Naukri, LinkedIn India, Instahyre, Cutshort, Hirist, Indeed India, Foundit (Monster India), Shine, TimesJobs, Glassdoor India, AngelList/Wellfound, WeWorkRemotely + direct company career pages
 
 **What it does:**
-1. Browses 12+ platforms in your own Chrome session for jobs matching your exact skills
+1. Runs four parallel scouts across 12+ platforms in your own Chrome session, each many pages deep, for jobs matching your exact skills
 2. Scores and ranks every result (skill match, seniority fit, salary range, company type)
 3. Every link is one it actually opened — no expired or dead listings
 4. For EVERY match: generates an ATS-optimized resume tailored to THAT specific job description (each resume is different — not one generic resume)
@@ -117,26 +117,74 @@ If running as a scheduled task or unattended session:
 
 Then run the search across ALL platforms.
 
-#### How Searching Works — Chrome Mode
+#### How Searching Works — Parallel Scouts in Chrome
 
-Jobs are found by **driving the user's own Chrome browser**, not by web search. This is what makes results real: the user is already logged into Naukri and LinkedIn, so their session sees live listings, applied/saved state, and recruiter-visible detail that a search engine never returns.
+Jobs are found by **driving the user's own Chrome browser**, not by web search. This is what makes results real: the user is already logged into Naukri, LinkedIn, Instahyre and Wellfound, so their session sees live listings, applied/saved state, and recruiter-visible detail that a search engine never returns.
 
-Before any browser tool call, invoke the `claude-in-chrome` skill. Then, per platform:
+**Search the platforms in parallel using subagents, not one at a time.** A sequential crawl of 12+ platforms at real depth takes too long and, in practice, stops at page one of each — which is the single biggest cause of a thin result set. Fan the work out instead.
 
-1. `tabs_context_mcp` once at the start of a search to see existing tabs — never reuse a tab ID from an earlier session.
-2. `tabs_create_mcp` + `navigate` to the platform's search URL with the user's skill/role/city filled in (patterns below).
-3. `get_page_text` to read the results list. Use `read_page` or `computer` screenshots only when the text extraction is unusable (heavy JS, infinite scroll).
-4. If the URL pattern lands on a generic page instead of results, use `find` + `form_input` to type the query into the site's own search box and submit.
-5. Scroll with `computer` to load more results where the list is lazy-loaded — take 2-3 passes, then stop.
-6. Open promising listings in the same tab to pull the full JD, job ID, and posted date, then go back.
-7. `tabs_close_mcp` every tab you opened when the platform is done. Leave the user's browser as you found it.
+##### Spawn four scouts
 
-**Rules:**
-- Run platforms **sequentially**, not in parallel — one tab at a time keeps the browser responsive and avoids rate-limiting.
-- If a platform demands login, shows a CAPTCHA, or blocks the extension: skip it silently and continue. Never enter credentials, never solve a CAPTCHA, never create an account.
-- Never trigger `alert`/`confirm` dialogs — avoid clicking "Apply", "Save", "Delete", or anything that mutates the user's account state. This is a read-only crawl.
-- If a platform fails twice, drop it and move on. Note it once at the end of the report if it materially cut the result count.
-- If the Chrome extension isn't connected at all, say so once and stop — don't silently fall back to guessing listings.
+Use the Agent tool to launch these four concurrently, in ONE message with four tool calls:
+
+| Scout | Owns |
+|---|---|
+| `instahyre-scout` | Instahyre — highest signal when the user is logged in; curated product-company roles |
+| `indian-boards-scout` | Naukri, Hirist, Indeed India, Foundit, Shine, TimesJobs |
+| `remote-abroad-scout` | Wellfound, WeWorkRemotely, Arbeitnow, Relocate.me — remote + visa-sponsored |
+| `careers-boards-scout` | Company ATS boards: Lever, Greenhouse, Ashby, SmartRecruiters, Workday |
+
+Adjust the split to the user's stated targets — drop the abroad scout if they only want India, add a scout for a specific vertical if they named one.
+
+##### Every scout prompt MUST contain
+
+1. **Tool loading**, as one call:
+   `ToolSearch query "select:mcp__claude-in-chrome__tabs_context_mcp,mcp__claude-in-chrome__navigate,mcp__claude-in-chrome__tabs_create_mcp,mcp__claude-in-chrome__tabs_close_mcp,mcp__claude-in-chrome__get_page_text,mcp__claude-in-chrome__javascript_tool,mcp__claude-in-chrome__browser_batch,mcp__claude-in-chrome__computer"`
+2. **Its own tab**: call `tabs_context_mcp{createIfEmpty:true}`, then `tabs_create_mcp`, then use only that tabId and close it before returning. Scouts sharing a tab will fight each other.
+3. **The user's full profile** — stack, years, target roles, locations. Each scout starts with no context.
+4. **Working URL patterns and how to paginate them** (see Platforms Searched below). Tell it explicitly how many pages deep to go.
+5. **The exclusion list** — service/staffing companies by name, YoE floors, off-discipline roles, and any jobs already found in an earlier round so it doesn't repeat them.
+6. **An instruction to open each kept listing** and capture the real JD text — a results-page snippet is not enough to tailor a resume from.
+7. **The read-only rule, verbatim**: never click Apply, Save, or Easy Apply; never enter credentials; never solve a CAPTCHA; never submit a form.
+8. **The return contract** — a JSON array with `company, role, job_id, platform, location, posted_date, required_yoe, salary, url, stack, jd_excerpt, company_desc`, and only for listings whose page actually loaded.
+
+##### Collecting results
+
+Scouts' plain text output is NOT visible to the orchestrator. Tell each one explicitly:
+
+> Your plain-text output is not visible to me. To deliver findings you MUST call SendMessage with `to: "<orchestrator-session-name>"` and the JSON array in the `message` field. If the payload is large, split it across several calls labelled "part 1 of N".
+
+Get the orchestrator's own name from `ListAgents` (it is named in the first line of the output). Save each part to a file on disk as it arrives — do not try to hold 70 listings in context.
+
+##### Batching inside a scout
+
+Scouts should use `browser_batch` aggressively — `navigate` + `wait` + `get_page_text` for several pages in a single call. To pull listing URLs and their surrounding text together, `javascript_tool` beats scrolling and re-reading:
+
+```
+Array.from(document.querySelectorAll('a[href*="/job-"]')).map(a=>{
+  const c=a.closest('div');
+  return a.href+' :: '+(c?c.innerText.replace(/\s+/g,' ').slice(0,300):'')
+}).join('\n')
+```
+
+Note `read_page` only returns elements currently in the viewport, so it will silently under-report a lazy-loaded list.
+
+**Rules that apply to every scout:**
+- One tab per scout. Close it before returning.
+- If a platform demands login, shows a CAPTCHA, or blocks the extension: skip it and record why. Never enter credentials, never solve or bypass a CAPTCHA, never create an account.
+- Never trigger `alert`/`confirm` dialogs — avoid Apply, Save, Delete, or anything that mutates the user's account state. This is a read-only crawl.
+- If a platform fails twice, drop it and move on; report it in the skipped list rather than silently omitting it.
+- If the Chrome extension isn't connected at all, say so once and stop — never fall back to guessing listings.
+- Some domains are blocked by the extension's site permissions. Report these by name so the user can allow them; ATS boards (`job-boards.greenhouse.io`, `jobs.lever.co`, `jobs.ashbyhq.com`, `jobs.smartrecruiters.com`, `*.myworkdayjobs.com`) are usually reachable even when a company's own careers domain is not, so try the ATS board as a fallback before giving up on a company.
+
+##### Scoring and generating at volume
+
+With 60+ listings, hand-writing every resume is not practical and hand-waving them is not acceptable. Use a two-tier approach:
+
+- **Top ~10 by fit**: hand-write the summary, bullet ordering, and cover letter.
+- **The rest**: generate from the JD with a keyword-driven composer — match JD terms against the user's real skills, reorder bullets by overlap, and compose the letter from a library of the user's actual achievements. Never let the composer assert a skill the user lacks; have it name the gap instead.
+
+Weight the fitness score toward the user's **core** stack rather than raw keyword breadth. A JD that lists twelve technologies will otherwise outrank a JD that names exactly what the user does. Verify before shipping: check no resume contains a skill the user doesn't have, that cover letters have no duplicated paragraphs, and that per-company output folders have unique names.
 
 #### Platforms Searched
 
@@ -144,13 +192,13 @@ Before any browser tool call, invoke the `claude-in-chrome` skill. Then, per pla
 
 | # | Platform | Search URL | What It's Best For |
 |---|----------|------------|-------------------|
-| 1 | **Naukri.com** | `naukri.com/[skill]-jobs-in-[city]` | Largest Indian job board, most IT/tech listings. Job ID on each listing page. |
+| 1 | **Naukri.com** | `naukri.com/[skill]-jobs-in-[city]` | Largest Indian job board. Query params on this URL are dropped — filter in-page instead. Listing URLs resolve as `naukri.com/job-listings-j-[id]`. Its JSON search API returns 406/recaptcha — scrape rendered pages, never attempt a bypass. |
 | 2 | **LinkedIn India** | `linkedin.com/jobs/search/?keywords=[role]&location=[city]&f_TPR=r86400` | MNC and product roles. `f_TPR=r86400` = last 24h. Job ID is in the listing URL. |
-| 3 | **Instahyre** | `instahyre.com/search-jobs/` then filter in-page | Curated product-company jobs. Needs the user's login — skip if logged out. |
+| 3 | **Instahyre** | `instahyre.com/search-jobs?search=true&job_type=0&company_size=0&offset=0&skills=React.js,Node.js,TypeScript` | Highest signal when logged in. Set `skills=` per query and run several skill sets. The `offset` param is ignored by the SPA — paginate via the in-page pager, and throttle (~2s) to avoid HTTP 429. |
 | 4 | **Cutshort** | `cutshort.io/jobs/[skill]-jobs-in-[city]` | Startup and product company focus. Direct founder connections. |
-| 5 | **Hirist** | `hirist.tech` search box → `[skill] [role]` | Premium tech jobs. Good for experienced candidates. |
+| 5 | **Hirist** | `hirist.tech/search/[keyword]-jobs` | Premium tech jobs. Note the pattern is `/search/<kw>-jobs`, NOT `/search/q-<kw>-jobs-in-<city>` (that form returns junk). Inventory below 5 yrs is thin. |
 | 6 | **Indeed India** | `in.indeed.com/jobs?q=[role]&l=[city]&fromage=1` | Aggregator — catches smaller companies. `fromage` = days old. |
-| 7 | **Foundit (Monster India)** | `foundit.in/srp/results?query=[role]&locations=[city]` | Legacy platform, still has good MNC listings. |
+| 7 | **Foundit (Monster India)** | `foundit.in/srp/results?query=[role]&locations=[city]` | Legacy platform. Result cards aren't anchors — recover job IDs from element IDs and rebuild `foundit.in/job/[slug]-[id]`. Low yield. |
 | 8 | **Shine.com** | `shine.com/job-search/[role]-jobs-in-[city]` | HindustanTimes job portal, decent for mid-level roles. |
 | 9 | **TimesJobs** | `timesjobs.com/candidate/job-search.html?txtKeywords=[skill]&txtLocation=[city]` | TimesOfIndia's portal, good volume. |
 | 10 | **Glassdoor India** | `glassdoor.co.in/Job/index.htm` → search box | Salary data + reviews alongside listings. |
@@ -159,7 +207,7 @@ Before any browser tool call, invoke the `claude-in-chrome` skill. Then, per pla
 
 | # | Platform | Search URL | What It's Best For |
 |---|----------|------------|-------------------|
-| 11 | **AngelList / Wellfound** | `wellfound.com/jobs?query=[role]&location=India` | Funded startups, equity-included roles. |
+| 11 | **AngelList / Wellfound** | `wellfound.com/role/r/[role-slug]` (remote) and `wellfound.com/role/l/[role-slug]/india` | Funded startups, equity-included roles. Paginate with `?page=2..4`. Map company→URL from each card's own DOM subtree, never from text order. |
 | 12 | **WeWorkRemotely** | `weworkremotely.com/remote-jobs/search?term=[skill]` | Remote roles paying in USD/EUR — best for senior devs. |
 
 URL patterns drift as sites change. If one lands on a homepage or an empty state, fall back to the site's own search box (`find` + `form_input`) rather than abandoning the platform.
@@ -175,7 +223,7 @@ Good targets by company type:
 - **Service (if user wants)**: TCS, Infosys, Wipro, HCL, Tech Mahindra, Cognizant, Capgemini
 
 **If user is also looking abroad**, additionally search:
-- Arbeitnow, Relocate.me, Jaabz (visa-sponsorship confirmed platforms)
+- Arbeitnow (`arbeitnow.com/visa-sponsorship-jobs?search=[skill]`), Relocate.me (its `?query=` param is ignored — paginate the whole board, it's small), Jaabz
 - Country-specific boards (Seek for Australia, StepStone for Germany, Reed for UK, Bayt for UAE)
 - Same approach — navigate each board in Chrome with the target country as the location filter
 
@@ -517,7 +565,8 @@ Whenever `/job-skill status` (or the nightly pipeline) detects rejections via Gm
 ## Nightly Pipeline (Scheduled Task)
 
 ### Phase 1: Search
-- Browse ALL 12+ platforms in Chrome for jobs posted in last 24 hours (use each site's 24h filter where it has one)
+- Spawn the four parallel scouts (see How Searching Works) across ALL 12+ platforms in Chrome for jobs posted in the last 24-48 hours (use each site's freshness filter where it has one)
+- Pass each scout the user's full profile, the exclusion list, AND the list of companies+job IDs already in `job_tracker.xlsx`, so it never re-reports a job the user has already seen
 - If Chrome isn't reachable, report that instead of an empty search — don't fabricate listings
 - Score, rank, deduplicate; close every tab opened
 
