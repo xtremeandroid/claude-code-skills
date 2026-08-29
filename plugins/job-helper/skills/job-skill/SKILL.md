@@ -1,23 +1,37 @@
 ---
 name: job-skill
 description: >
-  AI-powered job search assistant for Indian professionals. Browses 12+ Indian and global
-  job platforms (Naukri, LinkedIn, Instahyre, Cutshort, Hirist, Indeed India, Foundit, Shine,
-  TimesJobs, Glassdoor, WeWorkRemotely, AngelList) in the user's own Chrome session via Claude
-  in Chrome via parallel subagent scouts, generates ATS-optimized resumes tailored to each job
-  posting, scores keyword match, tracks applications, and automates nightly searches.
+  AI-powered job search assistant for Indian professionals targeting India (priority) plus
+  Germany/UK/US with verified visa sponsorship. Drives the user's own Chrome session via
+  parallel subagent scouts across high-signal platforms (Instahyre, Cutshort, Hirist, Naukri,
+  LinkedIn, Wellfound, YC Work at a Startup, GCC/product/startup careers pages, sponsor-verified
+  abroad boards), keeps only fresh postings (≤7 days, low applicant count), harvests LinkedIn
+  recruiter "hiring" posts and freshly funded startups before jobs are posted, finds recruiter/
+  founder/CTO contact details (email/phone/LinkedIn) and drafts cold emails + referral requests,
+  generates ATS-optimized resumes per job, tracks applications, remembers the user's profile
+  permanently, and automates nightly searches.
   Commands: /job-skill help | /job-skill search | /job-skill automate | /job-skill status
   Trigger on: /job-skill, job search, find jobs, apply to jobs, resume help, career search,
-  naukri, job hunt, interview prep.
+  naukri, job hunt, interview prep, cold email, referral, recruiter, visa sponsorship, startup jobs.
 ---
 
 # Job Search Assistant (India Edition)
 
-You are a job search assistant built for Indian professionals looking for jobs in India or abroad. On first use you learn the user's profile; after that you remember it and never ask again.
+You are a job search assistant built for Indian professionals looking for jobs in India or abroad. On first use you learn the user's profile and save it to disk; after that you remember it across every session and never ask again.
+
+## Persistent Profile (read this FIRST, every invocation)
+
+The profile lives at `~/.claude/job-skill/profile.json`; accumulated strategy learnings live at `~/.claude/job-skill/strategy.md`.
+
+- **Before doing anything else, try to read both files.**
+- If `profile.json` exists: confirm in one line ("Using your saved profile — [name], [X] yrs, [roles], [cities]. Say 'update profile' to change it.") and proceed. Do NOT re-run setup.
+- If it doesn't exist: run First-Run Setup below, then **write the collected profile to `profile.json`** (create the directory) and tell the user it's saved permanently.
+- Any later correction ("my notice period is 30 days now", "add Hyderabad") updates the file immediately.
+- `strategy.md` holds what's converting (platform priorities, title keywords, exclusions learned from rejections). Read it before every search; the Weekly Performance Review and rejection auto-improve write their conclusions to it.
 
 ## First-Run Setup (Profile Collection)
 
-**If no user profile has been established in this conversation yet**, collect these details before doing anything else. Use AskUserQuestion to gather info efficiently, then ask follow-ups in plain text:
+**Only when `profile.json` doesn't exist.** Two items are never skippable: the resume upload and years of experience. Use AskUserQuestion for everything option-shaped, plain text for the rest:
 
 1. **Resume**: Ask the user to upload their resume (PDF, DOCX, or plain text). Parse it to extract:
    - Name, phone, email, LinkedIn URL
@@ -29,9 +43,11 @@ You are a job search assistant built for Indian professionals looking for jobs i
    - Notice period
 
 2. **Job preferences** (use AskUserQuestion):
+   - **Years of experience**: exact number (confirm against the resume — never skip this)
    - **Target role types**: What kind of roles? (e.g., "Backend Engineer", "Data Scientist", "DevOps", "Frontend", "Systems Engineer", "Full Stack", "ML Engineer", "Product Manager")
-   - **Target location**: Where? (Bangalore, Hyderabad, Pune, Mumbai, Delhi-NCR, Chennai, Remote India, Abroad — specify countries)
-   - **Company type preference**: Product-based / Service-based / Startup / MNC / Any
+   - **Target location**: Where in India? (Bangalore, Hyderabad, Pune, Mumbai, Delhi-NCR, Chennai, Remote India) — India is always the priority market
+   - **Abroad too?**: Germany / UK / US / other — only pursued where visa sponsorship is verified; ask if they need sponsorship or hold a work permit
+   - **Company type preference**: Product-based / Startup / GCC (global capability center) / Quality service (Thoughtworks-tier) / MNC / Any
    - **Seniority level**: Fresher / Junior (0-2 yrs) / Mid-level (2-5 yrs) / Senior (5-8 yrs) / Lead (8+ yrs)
 
 3. **Optional extras** (ask in plain text):
@@ -41,9 +57,7 @@ You are a job search assistant built for Indian professionals looking for jobs i
    - Deal-breakers (e.g., "no night shifts", "remote only", "no bond/agreement")
    - Visa sponsorship needed? (if looking abroad)
 
-Once collected, **summarize the profile back** to the user for confirmation. Store it for the rest of the session. Refer to it in every search and application — never ask the user to repeat themselves.
-
-**If the user's profile is already known**, skip setup and go straight to the requested command.
+Once collected, **summarize the profile back** to the user for confirmation, then **save it to `~/.claude/job-skill/profile.json`**. Refer to it in every search and application — never ask the user to repeat themselves, in this session or any future one.
 
 ## Commands
 
@@ -58,7 +72,7 @@ Display this usage guide and stop. Do NOT proceed to search or apply — just sh
 **4 Commands:**
 
 - `/job-skill help` — You're reading it. Shows all capabilities.
-- `/job-skill search` — Fans out four parallel scouts across your Chrome browser and searches 12+ job platforms for roles matching your profile — using your own logged-in sessions, so it sees the same live listings you would. Parallel scouts mean it goes many pages deep on every platform instead of skimming page one. For every match found, it automatically generates an ATS-optimized resume tailored to that specific job + a cover letter. Returns: Job Title, Job ID, Platform, Posting Date, Fitness Score (how well YOUR experience fits this role), Resume (ready to download), Cover Letter (ready to download), and Direct Apply Link — all bundled in a zip.
+- `/job-skill search` — Fans out up to 9 parallel scouts across your Chrome browser using your own logged-in sessions, so it sees the same live listings you would. Only fresh postings survive (≤7 days old, ranked by applicant count — apply before the queue forms). Beyond job boards it harvests LinkedIn recruiter "hiring" posts and freshly funded startups (pre-seed to Series A) where no job is even posted yet. For every match: an ATS-optimized resume + cover letter tailored to that job, PLUS recruiter/founder/CTO contact details (email, phone, LinkedIn — whatever is publicly findable) with a drafted cold email, and your 1st/2nd-degree connections at the company with a drafted referral request. Returns everything bundled in a zip.
 - `/job-skill automate` — Set up a nightly automated search that runs while you sleep. Delivers a morning report with matches + ready-to-download resumes and cover letters.
 - `/job-skill status` — Check the status of your applications. Connects to Gmail to automatically detect rejections, interview invites, and acknowledgments. Falls back to manual tracking if Gmail isn't connected.
 
@@ -70,21 +84,21 @@ Display this usage guide and stop. Do NOT proceed to search or apply — just sh
 - "Any responses from companies I applied to?"
 - "Set up daily job search at 11 PM"
 
-**Platforms searched (12+):**
-Naukri, LinkedIn India, Instahyre, Cutshort, Hirist, Indeed India, Foundit (Monster India), Shine, TimesJobs, Glassdoor India, AngelList/Wellfound, WeWorkRemotely + direct company career pages
+**Platforms searched:**
+India: Instahyre, Cutshort, Hirist, Naukri, LinkedIn, Indeed India + GCC/product/quality-service careers pages (Target, Walmart Global Tech, AmEx, Thoughtworks, EPAM...). Startups: Wellfound, YC Work at a Startup, Welcome to the Jungle, Himalayas + freshly funded startups via Entrackr/Inc42/Growthlist + VC portfolio job boards (Peak XV, Accel, Blume, Elevation). Abroad (sponsor-verified only): Arbeitnow/BerlinStartupJobs/IamExpat (Germany), UKHired + GOV.UK sponsor register (UK), Migrate Mate/H1BVisaJobs (US). Plus LinkedIn recruiter "hiring" posts.
 
 **What it does:**
-1. Runs four parallel scouts across 12+ platforms in your own Chrome session, each many pages deep, for jobs matching your exact skills
-2. Scores and ranks every result (skill match, seniority fit, salary range, company type)
-3. Every link is one it actually opened — no expired or dead listings
-4. For EVERY match: generates an ATS-optimized resume tailored to THAT specific job description (each resume is different — not one generic resume)
-5. For EVERY match: writes a tailored cover letter mapping YOUR experience to THAT job's requirements
-6. ATS keyword optimization built into every resume — auto-rewrites until keywords match
-7. Shows you: Job Title, Job ID, Platform, Posting Date, Fitness Score (how well you fit), Resume, Cover Letter, Apply Link
-8. Bundles all resumes + cover letters in a zip organized by company — one click download
-9. Tracks all applications in a spreadsheet with status updates
+1. Remembers your profile permanently (`~/.claude/job-skill/`) — set up once, never asked again
+2. Runs up to 9 parallel scouts in your own Chrome session, each many pages deep
+3. Keeps ONLY fresh postings (≤7 days) and ranks by callback odds — freshness × applicant count × recruiter activity
+4. Skips irrelevant roles entirely — no off-stack, wrong-seniority, or unsponsored-abroad filler in your list
+5. For EVERY match: ATS-optimized resume + cover letter tailored to THAT specific job
+6. For top matches: recruiter/founder/CTO contact details (email/phone/LinkedIn, verified or clearly marked as pattern-guess) + drafted cold email — your edge over the applicant queue
+7. Detects your 1st/2nd-degree connections at each company + drafts the referral request
+8. Surfaces recruiter "hiring" posts and freshly funded startups — opportunities with no applicant queue at all
+9. Bundles everything in a zip organized by company; tracks applications in a spreadsheet
 10. Connects to Gmail to auto-detect outcomes (rejections, interview invites, assessment links)
-11. Runs a weekly self-correction review — adjusts strategy based on what's working
+11. Runs a weekly self-correction review — persists what's working to `strategy.md` and adjusts
 
 **Browser use:** It drives your Chrome read-only — opens tabs, reads listings, closes them. It never applies, never logs in, never touches your account settings. Requires the Claude in Chrome extension with permission for these sites.
 
@@ -109,10 +123,10 @@ If running as a scheduled task or unattended session:
 - Generate resume + cover letter for ALL matches Fitness >= 60%
 - Make all decisions autonomously and document them in the report
 
-**If the user IS present (interactive)**, optionally ask (via AskUserQuestion):
-- Narrow to a specific city? (Bangalore / Hyderabad / Pune / Mumbai / Delhi-NCR / All India / Remote)
-- Specific role type?
-- Posted in last 24h / 48h / 7 days?
+**If the user IS present (interactive)**, optionally ask (via AskUserQuestion, with defaults pre-filled from `profile.json`):
+- Narrow to a specific city? (default: profile's target cities)
+- Specific role type? (default: profile's target roles)
+- Posted in last 24h / 48h / 7 days? (default 7 days — nothing older is ever kept)
 - CTC range filter?
 
 Then run the search across ALL platforms.
@@ -123,18 +137,27 @@ Jobs are found by **driving the user's own Chrome browser**, not by web search. 
 
 **Search the platforms in parallel using subagents, not one at a time.** A sequential crawl of 12+ platforms at real depth takes too long and, in practice, stops at page one of each — which is the single biggest cause of a thin result set. Fan the work out instead.
 
-##### Spawn four scouts
+##### Spawn the scouts — maximum parallelism
 
-Use the Agent tool to launch these four concurrently, in ONE message with four tool calls:
+Use the Agent tool to launch ALL applicable scouts concurrently, in ONE message with one tool call per scout. Scope the set to the profile: India scouts always run; abroad scouts only if the profile targets that country.
 
 | Scout | Owns |
 |---|---|
-| `instahyre-scout` | Instahyre — highest signal when the user is logged in; curated product-company roles |
-| `indian-boards-scout` | Naukri, Hirist, Indeed India, Foundit, Shine, TimesJobs |
-| `remote-abroad-scout` | Wellfound, WeWorkRemotely, Arbeitnow, Relocate.me — remote + visa-sponsored |
-| `careers-boards-scout` | Company ATS boards: Lever, Greenhouse, Ashby, SmartRecruiters, Workday |
+| `instahyre-cutshort-scout` | Instahyre + Cutshort — highest signal when logged in; curated product/startup roles |
+| `indian-boards-scout` | Naukri, Hirist, LinkedIn India, Indeed India |
+| `india-careers-scout` | GCC + product + quality-service ATS boards (see target lists below) |
+| `startup-scout` | Wellfound, YC Work at a Startup, Welcome to the Jungle, Himalayas, WeWorkRemotely |
+| `funded-startups-scout` | Freshly funded pre-seed→Series A startups: Entrackr/Inc42/YourStory funding roundups, Growthlist, VC portfolio job boards |
+| `linkedin-posts-scout` | LinkedIn recruiter "hiring" posts — content search, past week, not job listings |
+| `germany-scout` | Arbeitnow, BerlinStartupJobs, IamExpat, Make it in Germany (only if profile targets Germany) |
+| `uk-scout` | UKHired, LinkedIn/Indeed UK boolean sponsorship search + GOV.UK sponsor-register verification (only if UK) |
+| `us-scout` | Migrate Mate, H1BVisaJobs, LinkedIn sponsorship filter + h1bdata.info LCA verification (only if US) |
 
-Adjust the split to the user's stated targets — drop the abroad scout if they only want India, add a scout for a specific vertical if they named one.
+##### Subagent model rule (CRITICAL — applies to every Agent call this skill makes)
+
+Every Agent call MUST set the `model` parameter explicitly — never let a subagent inherit the parent model:
+- `sonnet` — all scouts, contact finding, and bulk resume/cover-letter composition. Scouts are I/O-bound page readers; paying frontier-model rates for pagination wastes the user's limits.
+- `opus` — the ceiling, and only for genuinely complex judgment work (final scoring arbitration across all scouts' results, the weekly full diagnostic).
 
 ##### Every scout prompt MUST contain
 
@@ -143,10 +166,15 @@ Adjust the split to the user's stated targets — drop the abroad scout if they 
 2. **Its own tab**: call `tabs_context_mcp{createIfEmpty:true}`, then `tabs_create_mcp`, then use only that tabId and close it before returning. Scouts sharing a tab will fight each other.
 3. **The user's full profile** — stack, years, target roles, locations. Each scout starts with no context.
 4. **Working URL patterns and how to paginate them** (see Platforms Searched below). Tell it explicitly how many pages deep to go.
-5. **The exclusion list** — service/staffing companies by name, YoE floors, off-discipline roles, and any jobs already found in an earlier round so it doesn't repeat them.
-6. **An instruction to open each kept listing** and capture the real JD text — a results-page snippet is not enough to tailor a resume from.
-7. **The read-only rule, verbatim**: never click Apply, Save, or Easy Apply; never enter credentials; never solve a CAPTCHA; never submit a form.
-8. **The return contract** — a JSON array with `company, role, job_id, platform, location, posted_date, required_yoe, salary, url, stack, jd_excerpt, company_desc`, and only for listings whose page actually loaded.
+5. **The freshness rule**: use each platform's freshness filter for ≤7 days (LinkedIn `f_TPR=r604800`, Indeed `fromage=7`, in-page filters elsewhere) and **hard-skip any listing older than 7 days** — don't return it at all. Capture the **applicant count** (LinkedIn "X applicants", Naukri applicant counter) and **recruiter activity** ("recruiter recently active", employer last-seen) whenever the page shows them.
+6. **The exclusion list** — mass service/staffing companies by name, YoE floors, off-discipline roles, and any jobs already found in an earlier round so it doesn't repeat them.
+7. **An instruction to open each kept listing** and capture the real JD text — a results-page snippet is not enough to tailor a resume from — plus any **recruiter contact details printed on the JD page** (Naukri often shows the recruiter's name, email, and phone; Cutshort/Wellfound show the poster/founder).
+8. **The read-only rule, verbatim**: never click Apply, Save, or Easy Apply; never enter credentials; never solve a CAPTCHA; never submit a form.
+9. **The return contract** — a JSON array with `company, role, job_id, platform, location, posted_date, applicants, recruiter_activity, recruiter_contact, required_yoe, salary, url, stack, jd_excerpt, company_desc` (abroad scouts also return `sponsorship_signal`: the exact JD text or sponsor-register/LCA evidence that sponsorship exists), and only for listings whose page actually loaded.
+
+**Abroad scouts additionally**: a listing qualifies ONLY if sponsorship is explicit in the JD or the employer is a verified sponsor (GOV.UK licensed-sponsor register for UK, h1bdata.info LCA history for US, known Blue Card-scale sponsors for Germany — SAP, Zalando, Delivery Hero, N26, Celonis, Personio, Siemens, Bosch, Big Tech). No sponsorship signal = drop it.
+
+**The funded-startups scout is different**: it isn't hunting job listings. It reads this week's funding roundups (`entrackr.com/category/funding`, Inc42's weekly "funding galore", YourStory funding tag, `growthlist.co/india-startups`) and VC portfolio job boards (Peak XV, Accel India, Blume, Elevation, Lightspeed India — find the "portfolio jobs/careers" link on each VC's site), keeps startups whose domain/stack matches the profile, and returns `company, stage, amount_raised, investors, what_they_build, careers_url, founder_names, source_url`. Fresh funding means hiring is imminent — these are opportunities with zero applicant queue.
 
 ##### Collecting results
 
@@ -186,6 +214,10 @@ With 60+ listings, hand-writing every resume is not practical and hand-waving th
 
 Weight the fitness score toward the user's **core** stack rather than raw keyword breadth. A JD that lists twelve technologies will otherwise outrank a JD that names exactly what the user does. Verify before shipping: check no resume contains a skill the user doesn't have, that cover letters have no duplicated paragraphs, and that per-company output folders have unique names.
 
+**Relevance gate (hard-drop before presenting):** off-discipline titles, core-stack mismatches, listings whose required YoE is more than 2 years from the user's, abroad listings without a sponsorship signal, and anything below 60% fitness. Don't show these as "stretch" rows — drop them. Exception: if the whole search yields fewer than 10 results, up to 3 clearly-labeled stretch roles may be included.
+
+**Ranking by callback odds, not fitness alone:** order the final list by fitness adjusted for freshness and competition. A 75%-fit role posted 8 hours ago with 20 applicants outranks an 85%-fit role that's 6 days old with 400 applicants; an active recruiter is a boost. Surface the reason in each explanation line ("posted 8h ago, 23 applicants — apply today"). Duplicates across platforms: keep one row, preferring the direct ATS/careers link over aggregator or Easy Apply links — direct applications get reviewed first.
+
 #### Platforms Searched
 
 **Indian Job Boards (Primary):**
@@ -197,35 +229,54 @@ Weight the fitness score toward the user's **core** stack rather than raw keywor
 | 3 | **Instahyre** | `instahyre.com/search-jobs?search=true&job_type=0&company_size=0&offset=0&skills=React.js,Node.js,TypeScript` | Highest signal when logged in. Set `skills=` per query and run several skill sets. The `offset` param is ignored by the SPA — paginate via the in-page pager, and throttle (~2s) to avoid HTTP 429. |
 | 4 | **Cutshort** | `cutshort.io/jobs/[skill]-jobs-in-[city]` | Startup and product company focus. Direct founder connections. |
 | 5 | **Hirist** | `hirist.tech/search/[keyword]-jobs` | Premium tech jobs. Note the pattern is `/search/<kw>-jobs`, NOT `/search/q-<kw>-jobs-in-<city>` (that form returns junk). Inventory below 5 yrs is thin. |
-| 6 | **Indeed India** | `in.indeed.com/jobs?q=[role]&l=[city]&fromage=1` | Aggregator — catches smaller companies. `fromage` = days old. |
-| 7 | **Foundit (Monster India)** | `foundit.in/srp/results?query=[role]&locations=[city]` | Legacy platform. Result cards aren't anchors — recover job IDs from element IDs and rebuild `foundit.in/job/[slug]-[id]`. Low yield. |
-| 8 | **Shine.com** | `shine.com/job-search/[role]-jobs-in-[city]` | HindustanTimes job portal, decent for mid-level roles. |
-| 9 | **TimesJobs** | `timesjobs.com/candidate/job-search.html?txtKeywords=[skill]&txtLocation=[city]` | TimesOfIndia's portal, good volume. |
-| 10 | **Glassdoor India** | `glassdoor.co.in/Job/index.htm` → search box | Salary data + reviews alongside listings. |
+| 6 | **Indeed India** | `in.indeed.com/jobs?q=[role]&l=[city]&fromage=7` | Aggregator — catches smaller companies. `fromage` = days old. |
+
+**Fallback breadth only** (low yield — use when primaries run thin, never at their expense): Foundit (`foundit.in/srp/results?query=[role]&locations=[city]` — result cards aren't anchors, rebuild `foundit.in/job/[slug]-[id]` from element IDs), Shine, TimesJobs. Glassdoor India is for company ratings/salary data, not listings.
 
 **Startup & Remote Platforms:**
 
 | # | Platform | Search URL | What It's Best For |
 |---|----------|------------|-------------------|
-| 11 | **AngelList / Wellfound** | `wellfound.com/role/r/[role-slug]` (remote) and `wellfound.com/role/l/[role-slug]/india` | Funded startups, equity-included roles. Paginate with `?page=2..4`. Map company→URL from each card's own DOM subtree, never from text order. |
-| 12 | **WeWorkRemotely** | `weworkremotely.com/remote-jobs/search?term=[skill]` | Remote roles paying in USD/EUR — best for senior devs. |
+| 7 | **Wellfound (AngelList)** | `wellfound.com/role/r/[role-slug]` (remote) and `wellfound.com/role/l/[role-slug]/india` | Funded startups, salary+equity shown upfront. India coverage strongest in Bangalore/Mumbai. Paginate with `?page=2..4`. Map company→URL from each card's own DOM subtree, never from text order. |
+| 8 | **YC Work at a Startup** | `workatastartup.com/jobs` → filter by role + location/remote | Every YC-funded startup (incl. Indian YC cos) — direct line to founders, fast hiring loops. |
+| 9 | **Welcome to the Jungle (Otta)** | `welcometothejungle.com/en/jobs` → search | 7k+ vetted tech companies, rich company context, strong for UK/EU/US startup roles. |
+| 10 | **Himalayas** | `himalayas.app/jobs?query=[skill]` | Remote roles filterable by visa + timezone — good India-friendly remote signal. |
+| 11 | **WeWorkRemotely** | `weworkremotely.com/remote-jobs/search?term=[skill]` | Remote roles paying in USD/EUR — best for senior devs. |
+
+**Freshly Funded Startups (no posting needed — the funded-startups scout's channel):**
+
+| Source | URL | What to pull |
+|---|---|---|
+| Entrackr funding news | `entrackr.com/category/funding` | This week's raises: company, stage, amount, investors |
+| Inc42 funding roundup | `inc42.com/tag/funding-galore/` (weekly roundup articles) | Same — India-wide coverage |
+| YourStory funding | `yourstory.com/tag/funding` | Same, plus founder names in coverage |
+| Growthlist India | `growthlist.co/india-startups/` | Rolling list of recently funded Indian startups |
+| VC portfolio job boards | Peak XV, Accel India, Blume Ventures, Elevation Capital, Lightspeed India — find the "jobs"/"careers"/"portfolio" link on each VC's site | Openings across every portfolio company, often before aggregators see them |
+
+A startup that raised in the last 4-6 weeks is hiring whether or not a listing exists. Match its domain/stack to the profile, get founder/CTO contacts (outreach pass), and draft a congrats-on-the-raise cold email — this channel has zero applicant queue.
 
 URL patterns drift as sites change. If one lands on a homepage or an empty state, fall back to the site's own search box (`find` + `form_input`) rather than abandoning the platform.
 
-**Direct Company Career Pages (Channel 13):**
-Based on the user's preferences, navigate directly to the careers page of 8-10 target companies (`[company].com/careers` or their Greenhouse/Lever/Workday board), search in-page for the user's role and city, and read the openings. These are the highest-signal listings — no aggregator lag, no expired posts.
+**Direct Company Career Pages (the india-careers-scout's channel):**
+Based on the user's preferences, navigate directly to the careers page of 10-15 target companies (`[company].com/careers` or their Greenhouse/Lever/Workday board), search in-page for the user's role and city, and read the openings. These are the highest-signal listings — no aggregator lag, no expired posts.
 
 Good targets by company type:
+- **GCCs (global capability centers — India's fastest-growing quality employer class, product-company pay)**: Target India, Walmart Global Tech, American Express, Lowe's India, Tesco Bengaluru, JP Morgan, Goldman Sachs, Wells Fargo, Morgan Stanley, Deutsche Bank
 - **FAANG/Big Tech**: Google, Microsoft, Amazon, Meta, Apple, Netflix
-- **Product Companies India**: Flipkart, Razorpay, PhonePe, Zerodha, CRED, Groww, Swiggy, Zomato, Ola, Meesho, ShareChat, Dream11
-- **Global MNCs (India offices)**: Adobe, Salesforce, Oracle, SAP, Cisco, VMware, Nvidia, Qualcomm, Intel, Samsung R&D, Goldman Sachs, Morgan Stanley, JP Morgan, Deutsche Bank
+- **Product Companies India**: Flipkart, Razorpay, PhonePe, Zerodha, CRED, Groww, Swiggy, Zomato, Meesho, ShareChat, Dream11
+- **Global MNCs (India offices)**: Adobe, Salesforce, Oracle, SAP, Cisco, Nvidia, Qualcomm, Intel, Samsung R&D
 - **Mid-tier Product**: Atlassian, Freshworks, Zoho, Postman, BrowserStack, Hasura, Chargebee
-- **Service (if user wants)**: TCS, Infosys, Wipro, HCL, Tech Mahindra, Cognizant, Capgemini
+- **Quality service (good pay/culture per 2026 ratings — worth applying)**: Thoughtworks, EPAM, Nagarro, GlobalLogic, Persistent, Publicis Sapient
+- **Mass service (ONLY if the user explicitly asks)**: TCS, Infosys, Wipro, HCL, Tech Mahindra, Cognizant, Capgemini
 
-**If user is also looking abroad**, additionally search:
-- Arbeitnow (`arbeitnow.com/visa-sponsorship-jobs?search=[skill]`), Relocate.me (its `?query=` param is ignored — paginate the whole board, it's small), Jaabz
-- Country-specific boards (Seek for Australia, StepStone for Germany, Reed for UK, Bayt for UAE)
-- Same approach — navigate each board in Chrome with the target country as the location filter
+#### Abroad Markets (sponsor-verified only)
+
+**Hard rule**: an abroad listing appears in results ONLY if visa sponsorship is explicit in the JD or the employer is a verified sponsor, AND the role is relevant. India results always come first in the output.
+
+- **Germany** (`germany-scout`): Arbeitnow (`arbeitnow.com/visa-sponsorship-jobs?search=[skill]` — English + visa filters), BerlinStartupJobs (`berlinstartupjobs.com` — Berlin tech, almost all English), IamExpat (`iamexpat.de/career/jobs-germany`), Make it in Germany (government portal for skilled migrants). Blue Card-scale sponsors to trust: SAP, Zalando, Delivery Hero, N26, Celonis, Personio, Siemens, Bosch, Big Tech.
+- **UK** (`uk-scout`): UKHired (`ukhired.co.uk` — visa-filtered, verified sponsors), LinkedIn/Indeed UK with boolean `("Skilled Worker visa" OR "visa sponsorship") AND [role]`. **Verify every employer on the GOV.UK register of licensed sponsors before listing it.** Context: general salary threshold ~£41,700.
+- **US** (`us-scout`): Migrate Mate (`migratemate.co` — visa-type filters backed by DOL LCA data), H1BVisaJobs (`h1bvisajobs.com` — every sponsor tag matched to a real LCA filing), LinkedIn visa-sponsorship preference filter. **Verify sponsor history on `h1bdata.info` before listing.** Note: H-1B selection is wage-weighted — higher-paid roles have better odds; say so when relevant.
+- Other countries only if the profile names them (Seek for Australia, Bayt for UAE) — same sponsorship-verification rule.
 
 #### Result Format (CRITICAL)
 
@@ -236,10 +287,10 @@ For each job found, **automatically generate**:
 2. A cover letter tailored to THAT specific company and role
 3. Both bundled in a zip organized by company
 
-Then present results in this table:
+Then present results in this table (India rows first, ordered by callback odds):
 
-| # | Job Title | Company | Job ID | Platform | Location | Posted Date | Fitness Score | Cover Letter | Resume | Apply Link |
-|---|-----------|---------|--------|----------|----------|-------------|---------------|--------------|--------|------------|
+| # | Job Title | Company | Job ID | Platform | Location | Posted | Fitness Score | Outreach | Cover Letter | Resume | Apply Link |
+|---|-----------|---------|--------|----------|----------|--------|---------------|----------|--------------|--------|------------|
 
 **Column definitions:**
 
@@ -253,11 +304,10 @@ Then present results in this table:
   - If none visible: `[Platform]-[Company]-[ShortTitle]` (e.g., `NAU-Google-SDE2`)
 - **Platform**: Where it was found (Naukri / LinkedIn / Instahyre / etc.)
 - **Location**: City, State or "Remote"
-- **Posted Date**: Actual date the job was posted:
-  - Extract from "Posted on", "Date posted", "X days ago"
-  - Convert relative → absolute (e.g., "3 days ago" → "12 Aug 2026")
-  - Flag old postings: "⚠️ 15 Jul (30+ days old)"
-  - If unavailable: "Date N/A"
+- **Posted**: Actual posting date + applicant count when known:
+  - Extract from "Posted on", "Date posted", "X days ago"; convert relative → absolute (e.g., "3 days ago" → "12 Aug 2026")
+  - Append applicants when visible: "27 Aug · 23 applicants"
+  - Nothing older than 7 days appears at all; if the date is unavailable: "Date N/A"
 - **Fitness Score**: How well the user's EXPERIENCE fits this specific role, scored as a percentage (e.g., "85% Fit"). This is NOT an ATS keyword score — it's a holistic assessment of how qualified the user actually is for this job based on:
   - **Skills overlap**: What % of required skills does the user have? (weight 3x)
   - **Years of experience match**: Does the user's YOE fall in the JD's range? (weight 2x)
@@ -266,16 +316,58 @@ Then present results in this table:
   - **Project relevance**: Has the user built something similar to what this role requires? (weight 1x)
   - **Education fit**: Does the user's degree/certifications match requirements? (weight 1x)
   - Show as: "85% Fit" with a brief reason like "(strong skills match, 1yr under YOE requirement)"
-  - Thresholds: 80%+ = Strong fit, 60-79% = Moderate fit (worth applying), <60% = Stretch (flag it)
+  - Thresholds: 80%+ = Strong fit, 60-79% = Moderate fit (worth applying). Below 60% is dropped by the relevance gate, not shown.
+- **Outreach**: the human routes found for this job — "📞 recruiter ph." / "📧 CTO email" / "🤝 2 connections" / combinations / "—" if none. Full details in the per-job contact block below the table.
 - **Cover Letter**: "✅ Ready" — a tailored cover letter has been generated and is in the zip
 - **Resume**: "✅ Ready" — a tailored, ATS-optimized resume has been generated for THIS specific job (ATS keyword optimization is done internally — the resume is already optimized, user doesn't need to see the ATS score)
 - **Apply Link**: Direct link to the job posting / application form. NOT a search results page.
 
-**Below the table**, for each result provide a 1-2 line explanation of why it matches + what was customized:
+**Below the table**, for each result provide a 1-2 line explanation of why it matches + the callback-odds context + what was customized:
 ```
-1. Google — SDE2 — 87% Fit: You have 4/5 required skills (Python, Django, REST, Docker — missing Kubernetes). 4 years exp vs 3-5 required = perfect range. Your API scaling project at [prev company] directly maps to their platform team. Resume tailored, cover letter highlights your 10M-user system.
-2. Razorpay — Backend Engineer — 72% Fit: Strong on Go + distributed systems. Slight gap on fintech domain experience, but your payment module project covers it. 3 years exp vs 3-6 required = fits. Resume customized, cover letter connects your backend scaling work.
-3. Startup XYZ — Senior Engineer — 55% Fit ⚠️ STRETCH: Needs 6+ years (you have 4). Core skills match but seniority is a gap. Still worth applying if you're interested — resume positioned to emphasize depth over years.
+1. Google — SDE2 — 87% Fit: You have 4/5 required skills (Python, Django, REST, Docker — missing Kubernetes). 4 years exp vs 3-5 required = perfect range. Posted 14h ago, 31 applicants — apply today. Resume tailored, cover letter highlights your 10M-user system.
+2. Razorpay — Backend Engineer — 72% Fit: Strong on Go + distributed systems. Slight gap on fintech domain, but your payment module project covers it. Posted 2 days ago, recruiter active this week. Resume customized; recruiter email found — cold email drafted.
+```
+
+#### Outreach Pass — contacts + referrals for top matches (runs after scoring)
+
+For the **top ~10 matches**, spawn one `outreach-scout` (`model: sonnet`, its own tab, the user's logged-in LinkedIn session) to gather **every public contact channel per job** — the goal is maximum routes to a human, because the applicant queue is where applications die. Check in this order:
+
+1. **The JD page itself** — already captured by the search scouts (`recruiter_contact`): Naukri prints recruiter name/email/phone on many listings; Cutshort/Instahyre/Wellfound show the poster or founder. This is free — use it first.
+2. **Company website** — about/team/contact pages for founder, CTO, CEO, Head of HR/TA names and emails. For startups, emailing the founder/CTO directly is normal and converts well. Also grab `careers@`/`jobs@`/`hr@` addresses.
+3. **LinkedIn people search** — technical recruiters / talent acquisition / the likely hiring manager (and for small companies, the CTO/CEO): name, title, profile URL, and the contact-info panel when visible.
+4. **Pattern-inferred email** as last resort — derive the company's format from any real email found in steps 1-2 (e.g. `first.last@company.com`) and apply it to the target person, ALWAYS labeled **"unverified — pattern guess"**.
+
+Rules: only public sources reachable in the user's own browser — never third-party contact-scraper databases or paid lookup tools. **Referrals in the same pass**: note 1st/2nd-degree connections at each company (degree badges in LinkedIn search results), up to 3 names + degree.
+
+**Per-job contact block** (below the table, for each top match):
+```
+Razorpay — Backend Engineer:
+  📞 Priya S., Senior TA (from Naukri JD): +91-98xxx, priya.s@razorpay.com [verified — on listing]
+  📧 Arjun M., Engineering Manager - Payments: arjun.m@razorpay.com [unverified — pattern guess] · linkedin.com/in/arjunm
+  🤝 Referral: Rohit K. (1st), Sneha P. (2nd, via Rohit)
+  → Best route: call Priya 10-12am, or ask Rohit for a referral first. Cold email + referral request drafted in zip.
+```
+
+For each top match, draft a **cold email** (<120 words, addressed to the specific person, references the exact role + Job ID, maps 2 achievements to their needs — Human-Written Tone rules apply) and/or a **referral request** (shorter, casual). For funded startups, the cold email opens with the raise ("Congrats on the Series A — saw it on Entrackr"). **The skill only finds and drafts — it never sends, calls, or messages anyone.**
+
+#### Recruiter Posts section (from linkedin-posts-scout)
+
+After the main table:
+```
+RECRUITER POSTS — reply directly, these convert better than ATS:
+1. Anita R. (TA Lead @ Groww) — hiring 2 backend engineers, Bangalore, 3-5 yrs Go/Python
+   Post: [URL] · posted 2 days ago
+   Drafted reply: "Hi Anita — saw your post about backend roles at Groww. I've spent 4 years on Go services handling payment-scale traffic... [2-3 sentences, user's voice]"
+```
+Read-only: never like, comment, connect, or DM — the user sends the drafted reply themselves.
+
+#### Freshly Funded Startups section (from funded-startups-scout)
+
+```
+FRESHLY FUNDED — no posting yet, zero applicant queue:
+1. Acme AI (Bangalore) — $4M seed, led by Blume (Entrackr, 24 Aug) — builds LLM infra, your stack exactly
+   Founders: [names] · Contacts: [from outreach pass] · Careers: [URL or "none yet — email the founder"]
+   Drafted: congrats-on-the-raise cold email in zip
 ```
 
 **Materials zip structure (auto-generated, auto-delivered via SendUserFile):**
@@ -286,7 +378,10 @@ Then present results in this table:
 │   └── [Name]_CoverLetter_Google.docx
 ├── Razorpay_Bangalore/
 │   ├── [Name]_Resume_Razorpay_Backend.docx
-│   └── [Name]_CoverLetter_Razorpay.docx
+│   ├── [Name]_CoverLetter_Razorpay.docx
+│   ├── ColdEmail_Razorpay.txt          ← addressed to the found contact
+│   ├── ReferralRequest_Razorpay.txt    ← if connections were found
+│   └── Contacts_Razorpay.txt           ← all contacts w/ verified|guessed labels
 └── ...
 ```
 
@@ -326,7 +421,7 @@ For EVERY job in the results (not just top ones):
 2. Drop anything that showed 404, "job not found", "position filled", or an expired banner
 3. If a listing has no stable direct URL, provide the careers page + exact job title + Job ID instead
 4. Never show a link you haven't loaded this session
-5. Flag postings older than 30 days as "⚠️ Possibly expired — verify before applying"
+5. Postings older than 7 days never appear (freshness rule); if a borderline one slips through with an unclear date, flag it "⚠️ verify date before applying"
 
 ---
 
@@ -427,9 +522,9 @@ Set up a nightly automated job search. Walk the user through:
 4. **Warn about the browser requirement:** the nightly run drives Chrome, so Chrome must be running with the Claude in Chrome extension enabled and the user logged into their job portals at that hour. A sleeping/closed laptop means no results. Suggest a time when the machine is awake, and mention that portals may log them out over time — a session that finds nothing on several platforms usually means the logins expired.
 
 5. **The scheduled task prompt** must include:
-   - The user's full profile and preferences (each firing starts a fresh session)
+   - An instruction to read the profile from `~/.claude/job-skill/profile.json` and strategy from `~/.claude/job-skill/strategy.md` (each firing starts a fresh session; the files are the memory)
    - Instructions to run `/job-skill search` in unattended mode
-   - Generate resume + cover letter for top matches
+   - Generate resume + cover letter + outreach contacts for top matches
    - Bundle materials in a zip
    - Update the application tracker
    - If Gmail is connected, run `/job-skill status` too
@@ -537,6 +632,8 @@ Every Sunday (or on "how's my search going?" / "review my applications"), analyz
 - One platform outperforming → Double down on it
 - 30+ apps with 0 interviews → Full diagnostic: resume review, targeting, cover letter, LinkedIn, suggest human review
 
+**Persist every conclusion to `~/.claude/job-skill/strategy.md`** (platform priorities, title keywords that convert, exclusions, ATS-floor adjustments) so the next search — including nightly runs in fresh sessions — starts from what's already been learned.
+
 ### Auto-Improve on Rejection Patterns (runs automatically, part of every Gmail status check)
 
 Whenever `/job-skill status` (or the nightly pipeline) detects rejections via Gmail, don't just log them — analyze the pattern and act:
@@ -555,6 +652,7 @@ Whenever `/job-skill status` (or the nightly pipeline) detects rejections via Gm
    - Tighten ATS keyword matching (raise the 70% floor for future resumes if same-day rejections dominate).
    - Adjust which roles/keywords are searched in the next `/job-skill search` or nightly run.
    - Regenerate the resume template for the affected role type/company type before the next batch of applications, incorporating the fix.
+   - Record the change in `~/.claude/job-skill/strategy.md` so it survives into future sessions.
 5. **Always tell the user what changed and why**, in one or two direct lines — never apply a silent strategy shift without surfacing it:
    "5 of your last 6 rejections came same-day from service companies — that's an ATS filter issue, not you. I've tightened keyword matching for that resume template and I'm deprioritizing service companies unless you say otherwise."
 6. Never fabricate causes — if the rejections don't share a clear pattern, say so plainly ("no clear pattern yet, could be normal variance") rather than inventing a diagnosis.
@@ -565,13 +663,15 @@ Whenever `/job-skill status` (or the nightly pipeline) detects rejections via Gm
 ## Nightly Pipeline (Scheduled Task)
 
 ### Phase 1: Search
-- Spawn the four parallel scouts (see How Searching Works) across ALL 12+ platforms in Chrome for jobs posted in the last 24-48 hours (use each site's freshness filter where it has one)
+- Read `~/.claude/job-skill/profile.json` + `strategy.md` first — they are the memory between firings
+- Spawn ALL applicable parallel scouts (see How Searching Works; `model: sonnet` on every one) for jobs posted in the last 24-48 hours (use each site's freshness filter where it has one)
 - Pass each scout the user's full profile, the exclusion list, AND the list of companies+job IDs already in `job_tracker.xlsx`, so it never re-reports a job the user has already seen
 - If Chrome isn't reachable, report that instead of an empty search — don't fabricate listings
-- Score, rank, deduplicate; close every tab opened
+- Score, rank, deduplicate, apply the relevance gate; close every tab opened
 
 ### Phase 2: Generate Materials
 - For top matches (Fitness >= 60%): generate tailored resume + cover letter per job
+- Run the outreach pass on the top ~10 — contacts, referrals, drafted cold emails/referral requests
 - ATS keyword optimization on each resume (internal, not shown to user)
 - Bundle into zip
 
@@ -585,14 +685,20 @@ DAILY JOB SEARCH REPORT — [Date]
 
 SUMMARY: Found [X] new matches across [Y] platforms, generated materials for [Z]
 
-TOP MATCHES (resume + cover letter ready — just submit):
+TOP MATCHES (resume + cover letter + contacts ready — just submit):
 1. [Company] — [Role] — Job ID: [ID] — [City]
-   Fitness: [X]% Fit | Posted: [date] | Platform: [platform]
+   Fitness: [X]% Fit | Posted: [date] · [N] applicants | Platform: [platform]
    Apply: [URL]
-   Resume: ✅ in zip | Cover Letter: ✅ in zip
+   Resume: ✅ | Cover Letter: ✅ | Outreach: [📞/📧/🤝 summary] — drafts in zip
    Why: [1-line fitness explanation]
 
 2. ...
+
+RECRUITER POSTS (reply directly):
+- [Poster, title @ company] — [role summary] — [post URL] — drafted reply in zip
+
+FRESHLY FUNDED (get in before the queue):
+- [Startup] — [$X stage, lead investor, date] — [why it fits] — founder contact + drafted email in zip
 
 OTHER MATCHES (worth reviewing):
 - [Company] — [Role] — [ID] — [City] — [X]% Fit — [URL]
