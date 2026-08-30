@@ -1,0 +1,352 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Job Applications</title>
+<style>
+  :root{
+    --bg:#0f1115; --panel:#161a21; --panel2:#1c212a; --line:#272d38;
+    --fg:#e6e9ef; --dim:#8b93a3; --accent:#7aa2f7; --ok:#4ec9a0; --warn:#e0a15b;
+    --chipbg:#212734; --shadow:0 1px 2px rgba(0,0,0,.4);
+  }
+  @media (prefers-color-scheme: light){
+    :root{ --bg:#f6f7f9; --panel:#fff; --panel2:#f0f2f5; --line:#e2e5ea;
+      --fg:#1a1d23; --dim:#6b7280; --accent:#2f6feb; --ok:#0f9d76; --warn:#b4711d;
+      --chipbg:#eef1f5; --shadow:0 1px 2px rgba(16,24,40,.06); }
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--fg);
+    font:14px/1.5 -apple-system,BlinkMacSystemFont,"SF Pro Text",Inter,system-ui,sans-serif}
+  header{position:sticky;top:0;z-index:20;background:var(--bg);
+    border-bottom:1px solid var(--line);padding:14px 20px 10px}
+  .bar{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+  h1{font-size:15px;margin:0 8px 0 0;font-weight:650;letter-spacing:-.01em}
+  .grow{flex:1}
+  select,input[type=search],button{font:inherit;color:var(--fg);background:var(--panel);
+    border:1px solid var(--line);border-radius:8px;padding:6px 10px;box-shadow:var(--shadow)}
+  input[type=search]{min-width:190px}
+  button{cursor:pointer;transition:background .12s,border-color .12s}
+  button:hover{background:var(--panel2);border-color:var(--accent)}
+  button.primary{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:600}
+  button.primary:hover{filter:brightness(1.08);background:var(--accent)}
+  button:disabled{opacity:.45;cursor:default}
+  .chips{display:flex;gap:6px;margin-top:10px;flex-wrap:wrap;align-items:center}
+  .chip{background:var(--chipbg);border:1px solid transparent;border-radius:999px;
+    padding:4px 11px;font-size:12.5px;color:var(--dim);cursor:pointer}
+  .chip.on{border-color:var(--accent);color:var(--fg);background:var(--panel)}
+  .meta{color:var(--dim);font-size:12.5px}
+  .scorefilter{display:flex;gap:7px;align-items:center;background:var(--chipbg);
+    border:1px solid transparent;border-radius:999px;padding:3px 11px;font-size:12.5px;color:var(--dim)}
+  .scorefilter.on{border-color:var(--accent);color:var(--fg);background:var(--panel)}
+  .scorefilter input[type=range]{width:110px;accent-color:var(--accent);cursor:pointer;
+    background:none;border:none;padding:0;box-shadow:none;vertical-align:middle}
+  .scorefilter b{font-variant-numeric:tabular-nums;font-weight:600;min-width:34px;text-align:right}
+  .scorefilter button{padding:0 5px;font-size:12.5px;line-height:1.4;border-radius:6px;
+    background:none;border:none;box-shadow:none;color:var(--dim)}
+  .scorefilter button:hover{color:var(--fg);background:none;border:none}
+  main{padding:14px 20px 60px;max-width:1220px}
+  .row{background:var(--panel);border:1px solid var(--line);border-radius:11px;
+    padding:11px 13px;margin-bottom:8px;display:grid;
+    grid-template-columns:26px 1fr auto;gap:12px;align-items:start;box-shadow:var(--shadow)}
+  .row.applied{opacity:.62}
+  .row.applied .title{text-decoration:line-through;text-decoration-color:var(--dim)}
+  input[type=checkbox]{width:19px;height:19px;margin-top:2px;accent-color:var(--ok);cursor:pointer}
+  .title{font-weight:620;font-size:14.5px}
+  .title a{color:inherit;text-decoration:none;border-bottom:1px solid transparent}
+  .title a:hover{border-bottom-color:var(--accent);color:var(--accent)}
+  .role{color:var(--dim);font-weight:400}
+  .sub{color:var(--dim);font-size:12.5px;margin-top:3px;display:flex;gap:8px;flex-wrap:wrap}
+  .sub span{white-space:nowrap}
+  .dot::before{content:"·";margin-right:8px}
+  .score{font-variant-numeric:tabular-nums;font-weight:600;color:var(--ok)}
+  .score.mid{color:var(--warn)}
+  .badge{font-size:11px;border-radius:5px;padding:1px 6px;background:var(--chipbg);color:var(--dim)}
+  .badge.applied{color:var(--ok)} .badge.ready{color:var(--accent)}
+  .badge.dropped{color:var(--warn);text-decoration:line-through}
+  .badge.people{color:var(--fg);cursor:help}
+  .badge.people.warm{color:#f0b429;border:1px solid rgba(240,180,41,.35)}
+  .route{margin-top:6px;font-size:12.5px;color:var(--dim);max-width:80ch;line-height:1.45}
+  .route b{color:var(--fg);font-weight:600}
+  .route a{color:var(--accent)}
+  .route.warm{color:#f0b429}
+  .route.best{margin-top:4px;padding-left:8px;border-left:2px solid var(--accent);color:var(--fg);opacity:.85}
+  .route a.chan{color:var(--fg);text-decoration:none;border-bottom:1px dotted var(--dim)}
+  .route a.chan:hover{color:var(--accent);border-bottom-color:var(--accent)}
+  button.warmbtn{border-color:rgba(240,180,41,.4);color:#f0b429}
+  .acts{display:flex;gap:6px;align-items:center;flex-wrap:wrap;justify-content:flex-end}
+  .acts button{padding:5px 9px;font-size:12.5px;border-radius:7px}
+  .why{margin-top:7px;color:var(--dim);font-size:12.5px;max-width:76ch;
+    display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;cursor:pointer}
+  .why.open{-webkit-line-clamp:unset}
+  .nofolder{color:var(--warn);font-size:11.5px}
+  #toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%) translateY(80px);
+    background:var(--panel);border:1px solid var(--line);border-radius:9px;padding:9px 15px;
+    box-shadow:0 8px 26px rgba(0,0,0,.3);transition:transform .18s ease;z-index:60;max-width:80vw}
+  #toast.show{transform:translateX(-50%) translateY(0)}
+  #toast.err{border-color:#d9534f;color:#ff8f8b}
+  .empty{color:var(--dim);padding:40px 0;text-align:center}
+  dialog{background:var(--panel);color:var(--fg);border:1px solid var(--line);
+    border-radius:12px;padding:0;max-width:min(820px,92vw);width:820px}
+  dialog::backdrop{background:rgba(0,0,0,.55)}
+  .dlg-head{display:flex;align-items:center;gap:10px;padding:12px 14px;border-bottom:1px solid var(--line)}
+  .dlg-head b{flex:1;font-size:13.5px;font-weight:600}
+  pre{margin:0;padding:14px;max-height:62vh;overflow:auto;white-space:pre-wrap;
+    font:12.5px/1.6 ui-monospace,SFMono-Regular,Menlo,monospace}
+  kbd{background:var(--chipbg);border-radius:4px;padding:1px 5px;font-size:11px;font-family:ui-monospace,Menlo,monospace}
+</style>
+</head>
+<body>
+<header>
+  <div class="bar">
+    <h1>Job Applications</h1>
+    <select id="date"></select>
+    <input type="search" id="q" placeholder="Filter company, role, platform…">
+    <span class="grow"></span>
+    <span class="meta" id="count"></span>
+    <button id="openAll" class="primary">Open all links</button>
+    <button id="refresh" title="Rescan folders and reload the sheet">Refresh</button>
+  </div>
+  <div class="chips">
+    <span class="chip on" data-f="all">All</span>
+    <span class="chip" data-f="pending">Not applied</span>
+    <span class="chip" data-f="applied">Applied</span>
+    <span class="chip" data-f="docs">Has documents</span>
+    <span class="chip" data-f="contacts">Has contacts</span>
+    <span class="chip" data-f="referral">Has referral route</span>
+    <span class="chip" data-f="outreach">Outreach drafts</span>
+    <span class="scorefilter" id="scoreFilter" title="Only show jobs whose match score is at least this">
+      Match &ge;
+      <input type="range" id="minScore" min="0" max="100" step="5" value="0">
+      <b id="minScoreVal">0%</b>
+      <button id="minScoreReset" type="button" title="Clear match filter" hidden>&times;</button>
+    </span>
+    <span class="meta" id="src"></span>
+  </div>
+</header>
+
+<main id="list"></main>
+<div id="toast"></div>
+
+<dialog id="dlg">
+  <div class="dlg-head">
+    <b id="dlgTitle"></b>
+    <button id="dlgCopy" class="primary">Copy</button>
+    <button id="dlgOpen">Open in Word</button>
+    <button id="dlgClose">Close</button>
+  </div>
+  <pre id="dlgBody"></pre>
+</dialog>
+
+<script>
+const $ = s => document.querySelector(s);
+let DATA = {rows: [], dates: []}, FILTER = 'all', DLG = null;
+let MIN_SCORE = +(localStorage.getItem('minScore') || 0);
+
+const esc = s => (s ?? '').toString().replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const isApplied = r => /applied/i.test(r.status || '') && !/ready/i.test(r.status || '');
+const scoreOf = r => { const n = parseInt(r.fitness, 10); return Number.isFinite(n) ? n : -1; };
+
+function toast(msg, err) {
+  const t = $('#toast');
+  t.textContent = msg;
+  t.className = 'show' + (err ? ' err' : '');
+  clearTimeout(t._t);
+  t._t = setTimeout(() => t.className = '', err ? 4200 : 1800);
+}
+
+async function api(path, opts) {
+  const r = await fetch(path, opts);
+  const j = await r.json().catch(() => ({error: 'bad response'}));
+  if (!r.ok || j.error) throw new Error(j.error || ('HTTP ' + r.status));
+  return j;
+}
+
+function visible() {
+  const q = $('#q').value.trim().toLowerCase();
+  return DATA.rows.filter(r => {
+    if (FILTER === 'applied' && !isApplied(r)) return false;
+    if (FILTER === 'pending' && isApplied(r)) return false;
+    if (FILTER === 'docs' && !r.folder) return false;
+    if (FILTER === 'contacts' && !(r.outreach && r.outreach.contacts.length)) return false;
+    if (FILTER === 'referral' && !(r.outreach && r.outreach.connections.length)) return false;
+    if (FILTER === 'outreach' && !(r.docs || []).some(d => ['connectnotes','directmessages','referral','contacts','reply'].includes(d.kind))) return false;
+    if (MIN_SCORE > 0 && scoreOf(r) < MIN_SCORE) return false;
+    if (!q) return true;
+    const people = r.outreach
+      ? [...r.outreach.contacts.map(c => c.name + ' ' + c.title),
+         ...r.outreach.connections.map(c => c.name)].join(' ')
+      : '';
+    return [r.company, r.role, r.platform, r.location, r.status, r.why, people]
+      .join(' ').toLowerCase().includes(q);
+  });
+}
+
+function render() {
+  $('#minScore').value = MIN_SCORE;
+  $('#minScoreVal').textContent = MIN_SCORE ? MIN_SCORE + '%' : 'any';
+  $('#scoreFilter').classList.toggle('on', MIN_SCORE > 0);
+  $('#minScoreReset').hidden = MIN_SCORE === 0;
+  const rows = visible();
+  const done = DATA.rows.filter(isApplied).length;
+  $('#count').textContent = `${done}/${DATA.rows.length} applied · showing ${rows.length}`;
+  $('#src').textContent = DATA.workbook_name
+    ? `· ${DATA.workbook_name}${DATA.folder ? ' + ' + DATA.folder.split('/').pop() : ''}` : '';
+  const openable = rows.filter(r => r.url && !isApplied(r)).length;
+  $('#openAll').textContent = openable ? `Open all links (${openable})` : 'Open all links';
+  $('#openAll').disabled = !openable;
+
+  $('#list').innerHTML = rows.length ? rows.map(r => {
+    const ap = isApplied(r);
+    const score = Math.max(scoreOf(r), 0);
+    const docs = r.docs || [];
+    const has = k => docs.some(d => d.kind === k && d.text);
+    const hasCov = has('cover');
+    const o = r.outreach || null;
+    const nContacts = o ? o.contacts.length : 0;
+    const nConns = o ? o.connections.length : 0;
+    const firstConn = nConns ? o.connections[0] : null;
+    const topContact = nContacts ? o.contacts[0] : null;
+    return `<div class="row ${ap ? 'applied' : ''}" data-row="${r.sheet_row}">
+      <input type="checkbox" ${ap ? 'checked' : ''} ${r.sheet_row < 0 ? 'disabled title="Not a spreadsheet row"' : 'title="Mark applied"'}>
+      <div>
+        <div class="title">${r.url ? `<a href="${esc(r.url)}" target="_blank" rel="noreferrer">${esc(r.company)}</a>` : esc(r.company)}
+          <span class="role">— ${esc(r.role)}</span></div>
+        <div class="sub">
+          ${score ? `<span class="score ${score < 80 ? 'mid' : ''}">${score}%</span>` : ''}
+          <span class="dot">${esc(r.location || '—')}</span>
+          <span class="dot">${esc(r.platform || '')}</span>
+          ${r.yoe ? `<span class="dot">${esc(r.yoe)} yrs</span>` : ''}
+          ${r.salary ? `<span class="dot">${esc(r.salary)}</span>` : ''}
+          <span class="badge ${ap ? 'applied' : /filtered/i.test(r.status) ? 'dropped' : /ready|draft/i.test(r.status) ? 'ready' : ''}">${esc(r.status || 'Found')}</span>
+          ${r.date_applied ? `<span class="badge">applied ${esc(r.date_applied.slice(0, 10))}</span>` : ''}
+          ${nContacts ? `<span class="badge people" title="${esc(o.contacts.map(c => c.name + ' — ' + c.title).join('\n'))}">${nContacts} contact${nContacts > 1 ? 's' : ''}</span>` : ''}
+          ${nConns ? `<span class="badge people warm" title="${esc(o.connections.map(c => c.name + ' (' + c.degree + ') — ' + c.title).join('\n'))}">${nConns} connection${nConns > 1 ? 's' : ''}</span>` : ''}
+          ${!r.folder ? '<span class="nofolder">no documents folder</span>' : ''}
+        </div>
+        ${r.why ? `<div class="why">${esc(r.why)}</div>` : ''}
+        ${topContact ? `<div class="route"><b>${esc(topContact.name)}</b> — ${esc(topContact.title)}${topContact.phone ? ` · <a class="chan" href="tel:${esc(topContact.phone.replace(/\s+/g, ''))}">📞 ${esc(topContact.phone)}</a>` : ''}${topContact.email ? ` · <a class="chan" href="mailto:${esc(topContact.email)}">📧 ${esc(topContact.email)}</a>` : ''}${topContact.linkedin ? ` · <a class="chan" href="${esc(topContact.linkedin)}" target="_blank" rel="noreferrer">💼 LinkedIn</a>` : ''}</div>` : ''}
+        ${firstConn ? `<div class="route warm">Referral route: <b>${esc(firstConn.name)}</b> (${esc(firstConn.degree)}) — ${esc(firstConn.title)}</div>` : ''}
+        ${o && o.best_route ? `<div class="route best">${esc(o.best_route)}</div>` : ''}
+      </div>
+      <div class="acts">
+        ${hasCov ? '<button data-act="copy" data-kind="cover">Copy letter</button>' : ''}
+        ${has('connectnotes') ? '<button data-act="view" data-kind="connectnotes" class="warmbtn">Connection notes</button>' : ''}
+        ${has('directmessages') ? '<button data-act="view" data-kind="directmessages" class="warmbtn">Direct messages</button>' : ''}
+        ${has('referral') ? '<button data-act="view" data-kind="referral" class="warmbtn">Referral ask</button>' : ''}
+        ${has('reply') ? '<button data-act="view" data-kind="reply" class="warmbtn">Draft reply</button>' : ''}
+        ${has('contacts') ? '<button data-act="view" data-kind="contacts">Contacts</button>' : ''}
+        ${has('details') ? '<button data-act="view" data-kind="details">JD</button>' : ''}
+        ${r.url ? '<button data-act="link">Open</button>' : ''}
+        ${r.folder ? '<button data-act="folder" title="Reveal in Finder">Folder</button>' : ''}
+      </div>
+    </div>`;
+  }).join('') : '<div class="empty">Nothing matches that filter.</div>';
+}
+
+async function load(date) {
+  const j = await api('/api/data' + (date ? '?date=' + encodeURIComponent(date) : ''));
+  DATA = j;
+  $('#date').innerHTML = j.dates.map(d =>
+    `<option ${d === j.date ? 'selected' : ''} value="${d}">${d}${d === j.today ? ' (today)' : ''}</option>`).join('');
+  render();
+}
+
+async function getDoc(row, kind) {
+  return api(`/api/doc?date=${encodeURIComponent(DATA.date)}&row=${row}&kind=${kind}`);
+}
+
+async function copyDoc(row, kind) {
+  const d = await getDoc(row, kind);
+  await navigator.clipboard.writeText(d.text);
+  toast(`Copied ${d.name} · ${d.text.split(/\s+/).length} words`);
+}
+
+// ---- events
+$('#list').addEventListener('click', async e => {
+  const rowEl = e.target.closest('.row');
+  if (!rowEl) return;
+  const row = +rowEl.dataset.row;
+  const rec = DATA.rows.find(r => r.sheet_row === row);
+
+  if (e.target.matches('.why')) return e.target.classList.toggle('open');
+
+  if (e.target.matches('input[type=checkbox]')) {
+    const applied = e.target.checked;
+    try {
+      await api('/api/status', {method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({date: DATA.date, row, applied})});
+      rec.status = applied ? 'Applied' : 'Ready to Apply';
+      rec.date_applied = applied ? DATA.today : '';
+      render();
+      toast(`${rec.company} → ${rec.status}`);
+    } catch (err) { e.target.checked = !applied; toast('Save failed: ' + err.message, true); }
+    return;
+  }
+
+  const btn = e.target.closest('button');
+  if (!btn) return;
+  const act = btn.dataset.act, kind = btn.dataset.kind;
+  try {
+    if (act === 'copy') { btn.disabled = true; await copyDoc(row, kind); btn.disabled = false; }
+    if (act === 'link') window.open(rec.url, '_blank', 'noreferrer');
+    if (act === 'folder') await api('/api/reveal', {method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({path: rec.folder})});
+    if (act === 'view') {
+      const d = await getDoc(row, kind);
+      DLG = {row, kind, text: d.text};
+      $('#dlgTitle').textContent = d.name;
+      $('#dlgBody').textContent = d.text;
+      // .txt drafts open in TextEdit, not Word — label the button for what it does.
+      $('#dlgOpen').textContent = /\.docx$/i.test(d.name) ? 'Open in Word' : 'Open file';
+      $('#dlg').showModal();
+    }
+  } catch (err) { btn.disabled = false; toast(err.message, true); }
+});
+
+$('#openAll').addEventListener('click', async () => {
+  const urls = [...new Set(visible().filter(r => r.url && !isApplied(r)).map(r => r.url))];
+  if (!urls.length) return;
+  if (urls.length > 12 && !confirm(`Open ${urls.length} tabs?`)) return;
+  try {
+    const j = await api('/api/open', {method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({urls})});
+    toast(`Opened ${j.opened} link${j.opened === 1 ? '' : 's'}`);
+  } catch (err) { toast(err.message, true); }
+});
+
+$('#dlgCopy').addEventListener('click', async () => {
+  await navigator.clipboard.writeText(DLG.text); toast('Copied to clipboard');
+});
+$('#dlgOpen').addEventListener('click', () => api('/api/open-doc', {method: 'POST',
+  headers: {'Content-Type': 'application/json'},
+  body: JSON.stringify({date: DATA.date, row: DLG.row, kind: DLG.kind})}).catch(e => toast(e.message, true)));
+$('#dlgClose').addEventListener('click', () => $('#dlg').close());
+
+$('#date').addEventListener('change', e => load(e.target.value).catch(err => toast(err.message, true)));
+$('#q').addEventListener('input', render);
+$('#minScore').addEventListener('input', e => {
+  MIN_SCORE = +e.target.value;
+  localStorage.setItem('minScore', MIN_SCORE);
+  render();
+});
+$('#minScoreReset').addEventListener('click', e => {
+  e.preventDefault();
+  MIN_SCORE = 0;
+  localStorage.setItem('minScore', 0);
+  render();
+});
+$('#refresh').addEventListener('click', () => load(DATA.date).then(() => toast('Reloaded')));
+document.querySelectorAll('.chip').forEach(c => c.addEventListener('click', () => {
+  document.querySelectorAll('.chip').forEach(x => x.classList.remove('on'));
+  c.classList.add('on'); FILTER = c.dataset.f; render();
+}));
+document.addEventListener('keydown', e => {
+  if (e.key === '/' && e.target.tagName !== 'INPUT') { e.preventDefault(); $('#q').focus(); }
+  if (e.key === 'r' && e.metaKey) return;
+});
+
+load().catch(err => { $('#list').innerHTML = `<div class="empty">${esc(err.message)}</div>`; });
+</script>
+</body>
+</html>

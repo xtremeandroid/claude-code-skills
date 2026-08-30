@@ -1,0 +1,5 @@
+# Personal job-tracker data — never commit real application history
+plugins/job-helper/skills/job-skill/tracker/backups/
+plugins/job-helper/skills/job-skill/applications_*/
+plugins/job-helper/skills/job-skill/search-*/
+plugins/job-helper/skills/job-skill/*.xlsx

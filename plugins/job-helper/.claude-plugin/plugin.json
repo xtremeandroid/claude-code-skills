@@ -1,7 +1,7 @@
 {
   "name": "job-helper",
-  "description": "AI-powered job search assistant for Indian professionals: parallel scouts browse high-signal job boards, GCC/startup careers pages, and sponsor-verified abroad platforms in your own Chrome session, keep only fresh low-competition postings, find recruiter/founder contacts and draft cold emails and referral requests, generate ATS-optimized resumes per job, remember your profile permanently, and track applications.",
-  "version": "0.4.0",
+  "description": "AI-powered job search assistant for Indian professionals: parallel scouts browse high-signal job boards, GCC/startup careers pages, and sponsor-verified abroad platforms in your own Chrome session, keep only fresh low-competition postings, find recruiter/founder contacts and draft a personalized connection note + direct message per contact, draft referral requests, generate a tailored cover letter for top matches only, remember your profile permanently, and track applications.",
+  "version": "0.5.0",
   "author": {
     "name": "ayush",
     "email": "xtremeandpvt@gmail.com"

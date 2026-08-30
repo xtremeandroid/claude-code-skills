@@ -7,12 +7,13 @@ description: >
   LinkedIn, Wellfound, YC Work at a Startup, GCC/product/startup careers pages, sponsor-verified
   abroad boards), keeps only fresh postings (≤7 days, low applicant count), harvests LinkedIn
   recruiter "hiring" posts and freshly funded startups before jobs are posted, finds recruiter/
-  founder/CTO contact details (email/phone/LinkedIn) and drafts cold emails + referral requests,
-  generates ATS-optimized resumes per job, tracks applications, remembers the user's profile
-  permanently, and automates nightly searches.
+  founder/CTO contact details (email/phone/LinkedIn) and drafts a personalized LinkedIn
+  connection note + direct message per contact for every match, drafts referral requests for
+  existing connections, generates a tailored cover letter for top matches only, tracks
+  applications, remembers the user's profile permanently, and automates nightly searches.
   Commands: /job-skill help | /job-skill search | /job-skill automate | /job-skill status
   Trigger on: /job-skill, job search, find jobs, apply to jobs, resume help, career search,
-  naukri, job hunt, interview prep, cold email, referral, recruiter, visa sponsorship, startup jobs.
+  naukri, job hunt, interview prep, cold email, connection note, direct message, referral, recruiter, visa sponsorship, startup jobs.
 ---
 
 # Job Search Assistant (India Edition)
@@ -72,8 +73,8 @@ Display this usage guide and stop. Do NOT proceed to search or apply — just sh
 **4 Commands:**
 
 - `/job-skill help` — You're reading it. Shows all capabilities.
-- `/job-skill search` — Fans out up to 9 parallel scouts across your Chrome browser using your own logged-in sessions, so it sees the same live listings you would. Only fresh postings survive (≤7 days old, ranked by applicant count — apply before the queue forms). Beyond job boards it harvests LinkedIn recruiter "hiring" posts and freshly funded startups (pre-seed to Series A) where no job is even posted yet. For every match: an ATS-optimized resume + cover letter tailored to that job, PLUS recruiter/founder/CTO contact details (email, phone, LinkedIn — whatever is publicly findable) with a drafted cold email, and your 1st/2nd-degree connections at the company with a drafted referral request. Returns everything bundled in a zip.
-- `/job-skill automate` — Set up a nightly automated search that runs while you sleep. Delivers a morning report with matches + ready-to-download resumes and cover letters.
+- `/job-skill search` — Fans out up to 9 parallel scouts across your Chrome browser using your own logged-in sessions, so it sees the same live listings you would. Only fresh postings survive (≤7 days old, ranked by applicant count — apply before the queue forms). Beyond job boards it harvests LinkedIn recruiter "hiring" posts and freshly funded startups (pre-seed to Series A) where no job is even posted yet. For every match with a findable contact: recruiter/founder/CTO contact details (email, phone, LinkedIn — whatever is publicly findable) with a drafted, personalized LinkedIn connection note + direct message per contact, plus your 1st/2nd-degree connections at the company with a drafted referral request. For your strongest matches: a tailored cover letter. Returns everything bundled in a zip.
+- `/job-skill automate` — Set up a nightly automated search that runs while you sleep. Delivers a morning report with matches + ready-to-send outreach messages and top-match cover letters.
 - `/job-skill status` — Check the status of your applications. Connects to Gmail to automatically detect rejections, interview invites, and acknowledgments. Falls back to manual tracking if Gmail isn't connected.
 
 **Natural language also works:**
@@ -92,8 +93,8 @@ India: Instahyre, Cutshort, Hirist, Naukri, LinkedIn, Indeed India + GCC/product
 2. Runs up to 9 parallel scouts in your own Chrome session, each many pages deep
 3. Keeps ONLY fresh postings (≤7 days) and ranks by callback odds — freshness × applicant count × recruiter activity
 4. Skips irrelevant roles entirely — no off-stack, wrong-seniority, or unsponsored-abroad filler in your list
-5. For EVERY match: ATS-optimized resume + cover letter tailored to THAT specific job
-6. For top matches: recruiter/founder/CTO contact details (email/phone/LinkedIn, verified or clearly marked as pattern-guess) + drafted cold email — your edge over the applicant queue
+5. For your strongest matches: a tailored cover letter for THAT specific job
+6. For EVERY match with a findable contact: recruiter/founder/CTO contact details (email/phone/LinkedIn) + a drafted, personalized connection note and direct message per contact — your edge over the applicant queue
 7. Detects your 1st/2nd-degree connections at each company + drafts the referral request
 8. Surfaces recruiter "hiring" posts and freshly funded startups — opportunities with no applicant queue at all
 9. Bundles everything in a zip organized by company; tracks applications in a spreadsheet
@@ -120,7 +121,7 @@ Search for jobs matching the user's profile across all platforms. This is the co
 If running as a scheduled task or unattended session:
 - Do NOT use AskUserQuestion — it will block forever
 - Search ALL the user's target locations and roles
-- Generate resume + cover letter for ALL matches Fitness >= 60%
+- Generate a cover letter for the top ~10 matches by fitness (Fitness >= 60%); run outreach (contacts, connection notes, direct messages, referrals) for every match with a contact
 - Make all decisions autonomously and document them in the report
 
 **If the user IS present (interactive)**, optionally ask (via AskUserQuestion, with defaults pre-filled from `profile.json`):
@@ -156,7 +157,7 @@ Use the Agent tool to launch ALL applicable scouts concurrently, in ONE message 
 ##### Subagent model rule (CRITICAL — applies to every Agent call this skill makes)
 
 Every Agent call MUST set the `model` parameter explicitly — never let a subagent inherit the parent model:
-- `sonnet` — all scouts, contact finding, and bulk resume/cover-letter composition. Scouts are I/O-bound page readers; paying frontier-model rates for pagination wastes the user's limits.
+- `sonnet` — all scouts, contact finding, and cover-letter/outreach-message composition. Scouts are I/O-bound page readers; paying frontier-model rates for pagination wastes the user's limits.
 - `opus` — the ceiling, and only for genuinely complex judgment work (final scoring arbitration across all scouts' results, the weekly full diagnostic).
 
 ##### Every scout prompt MUST contain
@@ -207,12 +208,9 @@ Note `read_page` only returns elements currently in the viewport, so it will sil
 
 ##### Scoring and generating at volume
 
-With 60+ listings, hand-writing every resume is not practical and hand-waving them is not acceptable. Use a two-tier approach:
+With 60+ listings, hand-writing a cover letter for every one is not practical — that's why cover letters are scoped to the top ~10 matches only (see "How the Cover Letter Is Generated" below). Every other match still gets full outreach treatment (contacts, connection note, direct message) if a contact is findable — outreach is what scales, not documents.
 
-- **Top ~10 by fit**: hand-write the summary, bullet ordering, and cover letter.
-- **The rest**: generate from the JD with a keyword-driven composer — match JD terms against the user's real skills, reorder bullets by overlap, and compose the letter from a library of the user's actual achievements. Never let the composer assert a skill the user lacks; have it name the gap instead.
-
-Weight the fitness score toward the user's **core** stack rather than raw keyword breadth. A JD that lists twelve technologies will otherwise outrank a JD that names exactly what the user does. Verify before shipping: check no resume contains a skill the user doesn't have, that cover letters have no duplicated paragraphs, and that per-company output folders have unique names.
+Weight the fitness score toward the user's **core** stack rather than raw keyword breadth. A JD that lists twelve technologies will otherwise outrank a JD that names exactly what the user does. Verify before shipping: check the cover letter never claims a skill the user doesn't have, that no two cover letters share a duplicated paragraph, and that per-company output folders have unique names.
 
 **Relevance gate (hard-drop before presenting):** off-discipline titles, core-stack mismatches, listings whose required YoE is more than 2 years from the user's, abroad listings without a sponsorship signal, and anything below 60% fitness. Don't show these as "stretch" rows — drop them. Exception: if the whole search yields fewer than 10 results, up to 3 clearly-labeled stretch roles may be included.
 
@@ -253,7 +251,7 @@ Weight the fitness score toward the user's **core** stack rather than raw keywor
 | Growthlist India | `growthlist.co/india-startups/` | Rolling list of recently funded Indian startups |
 | VC portfolio job boards | Peak XV, Accel India, Blume Ventures, Elevation Capital, Lightspeed India — find the "jobs"/"careers"/"portfolio" link on each VC's site | Openings across every portfolio company, often before aggregators see them |
 
-A startup that raised in the last 4-6 weeks is hiring whether or not a listing exists. Match its domain/stack to the profile, get founder/CTO contacts (outreach pass), and draft a congrats-on-the-raise cold email — this channel has zero applicant queue.
+A startup that raised in the last 4-6 weeks is hiring whether or not a listing exists. Match its domain/stack to the profile, get founder/CTO contacts (outreach pass), and draft a congrats-on-the-raise connection note + direct message — this channel has zero applicant queue.
 
 URL patterns drift as sites change. If one lands on a homepage or an empty state, fall back to the site's own search box (`find` + `form_input`) rather than abandoning the platform.
 
@@ -280,17 +278,17 @@ Good targets by company type:
 
 #### Result Format (CRITICAL)
 
-**Every search result is a COMPLETE application package.** The search doesn't just find jobs — it finds them, scores them, generates a tailored ATS-optimized resume for each one, writes a cover letter, and bundles everything for download. The user gets results + ready-to-submit materials in one shot.
+**Every search result is a COMPLETE outreach package.** The search doesn't just find jobs — it finds them, scores them, finds a human to contact, drafts a connection note + direct message for that contact, and (for the strongest matches) writes a cover letter — then bundles everything for download. The user gets results + ready-to-send outreach in one shot.
 
 For each job found, **automatically generate**:
-1. A resume tailored to THAT specific job description (ATS-optimized, keyword-matched)
-2. A cover letter tailored to THAT specific company and role
-3. Both bundled in a zip organized by company
+1. A connection note + direct message per contact found (all matches)
+2. A cover letter, only for the top ~10 matches by fitness
+3. Everything bundled in a zip organized by company
 
 Then present results in this table (India rows first, ordered by callback odds):
 
-| # | Job Title | Company | Job ID | Platform | Location | Posted | Fitness Score | Outreach | Cover Letter | Resume | Apply Link |
-|---|-----------|---------|--------|----------|----------|--------|---------------|----------|--------------|--------|------------|
+| # | Job Title | Company | Job ID | Platform | Location | Posted | Fitness Score | Outreach | Cover Letter | Apply Link |
+|---|-----------|---------|--------|----------|----------|--------|---------------|----------|--------------|------------|
 
 **Column definitions:**
 
@@ -317,38 +315,96 @@ Then present results in this table (India rows first, ordered by callback odds):
   - **Education fit**: Does the user's degree/certifications match requirements? (weight 1x)
   - Show as: "85% Fit" with a brief reason like "(strong skills match, 1yr under YOE requirement)"
   - Thresholds: 80%+ = Strong fit, 60-79% = Moderate fit (worth applying). Below 60% is dropped by the relevance gate, not shown.
-- **Outreach**: the human routes found for this job — "📞 recruiter ph." / "📧 CTO email" / "🤝 2 connections" / combinations / "—" if none. Full details in the per-job contact block below the table.
-- **Cover Letter**: "✅ Ready" — a tailored cover letter has been generated and is in the zip
-- **Resume**: "✅ Ready" — a tailored, ATS-optimized resume has been generated for THIS specific job (ATS keyword optimization is done internally — the resume is already optimized, user doesn't need to see the ATS score)
+- **Outreach**: the human routes found for this job and what's drafted — "📧📞 note+DM ready" / "🤝 2 connections" / combinations / "—" if none found. Full details in the per-job contact block below the table.
+- **Cover Letter**: "✅ Ready" for the top ~10 matches only — "—" for everyone else.
 - **Apply Link**: Direct link to the job posting / application form. NOT a search results page.
 
 **Below the table**, for each result provide a 1-2 line explanation of why it matches + the callback-odds context + what was customized:
 ```
-1. Google — SDE2 — 87% Fit: You have 4/5 required skills (Python, Django, REST, Docker — missing Kubernetes). 4 years exp vs 3-5 required = perfect range. Posted 14h ago, 31 applicants — apply today. Resume tailored, cover letter highlights your 10M-user system.
-2. Razorpay — Backend Engineer — 72% Fit: Strong on Go + distributed systems. Slight gap on fintech domain, but your payment module project covers it. Posted 2 days ago, recruiter active this week. Resume customized; recruiter email found — cold email drafted.
+1. Google — SDE2 — 87% Fit: You have 4/5 required skills (Python, Django, REST, Docker — missing Kubernetes). 4 years exp vs 3-5 required = perfect range. Posted 14h ago, 31 applicants — apply today. Cover letter highlights your 10M-user system.
+2. Razorpay — Backend Engineer — 72% Fit: Strong on Go + distributed systems. Slight gap on fintech domain, but your payment module project covers it. Posted 2 days ago, recruiter active this week. Recruiter email found — connection note + direct message drafted.
 ```
 
-#### Outreach Pass — contacts + referrals for top matches (runs after scoring)
+#### Outreach Pass — contacts, connection notes, direct messages, referrals for EVERY match (runs after scoring)
 
-For the **top ~10 matches**, spawn one `outreach-scout` (`model: sonnet`, its own tab, the user's logged-in LinkedIn session) to gather **every public contact channel per job** — the goal is maximum routes to a human, because the applicant queue is where applications die. Check in this order:
+Outreach — not documents — is the primary lever, so this runs across **every relevance-gated match**, not just the top ones. Split the full match list across multiple parallel `outreach-scout` instances (`model: sonnet`, one tab each, the user's logged-in LinkedIn session — same fan-out pattern as the search scouts) to gather **every public contact channel per job**. Check in this order:
 
 1. **The JD page itself** — already captured by the search scouts (`recruiter_contact`): Naukri prints recruiter name/email/phone on many listings; Cutshort/Instahyre/Wellfound show the poster or founder. This is free — use it first.
 2. **Company website** — about/team/contact pages for founder, CTO, CEO, Head of HR/TA names and emails. For startups, emailing the founder/CTO directly is normal and converts well. Also grab `careers@`/`jobs@`/`hr@` addresses.
 3. **LinkedIn people search** — technical recruiters / talent acquisition / the likely hiring manager (and for small companies, the CTO/CEO): name, title, profile URL, and the contact-info panel when visible.
-4. **Pattern-inferred email** as last resort — derive the company's format from any real email found in steps 1-2 (e.g. `first.last@company.com`) and apply it to the target person, ALWAYS labeled **"unverified — pattern guess"**.
+4. **Pattern-inferred email** as last resort — derive the company's format from any real email found in steps 1-2 (e.g. `first.last@company.com`) and apply it to the target person. Prefer a real, sourced email over a guessed one when both exist, but don't label or annotate which is which in anything shown to the user — just the contact and their direct channels.
 
 Rules: only public sources reachable in the user's own browser — never third-party contact-scraper databases or paid lookup tools. **Referrals in the same pass**: note 1st/2nd-degree connections at each company (degree badges in LinkedIn search results), up to 3 names + degree.
 
-**Per-job contact block** (below the table, for each top match):
+**Per-job contact block** (below the table, for every match that has a contact) — icon + name + title + direct link only, no source or verification annotations:
 ```
 Razorpay — Backend Engineer:
-  📞 Priya S., Senior TA (from Naukri JD): +91-98xxx, priya.s@razorpay.com [verified — on listing]
-  📧 Arjun M., Engineering Manager - Payments: arjun.m@razorpay.com [unverified — pattern guess] · linkedin.com/in/arjunm
+  📞 Priya S., Senior TA — tel:+9198xxxxxxx
+  📧 Arjun M., Engineering Manager - Payments — mailto:arjun.m@razorpay.com · linkedin.com/in/arjunm
   🤝 Referral: Rohit K. (1st), Sneha P. (2nd, via Rohit)
-  → Best route: call Priya 10-12am, or ask Rohit for a referral first. Cold email + referral request drafted in zip.
+  → Connection note + direct message drafted for each contact above. Referral ask for Rohit in zip.
 ```
 
-For each top match, draft a **cold email** (<120 words, addressed to the specific person, references the exact role + Job ID, maps 2 achievements to their needs — Human-Written Tone rules apply) and/or a **referral request** (shorter, casual). For funded startups, the cold email opens with the raise ("Congrats on the Series A — saw it on Entrackr"). **The skill only finds and drafts — it never sends, calls, or messages anyone.**
+For **every contact found on every match**, draft a **connection note** and a **direct message** using the fixed templates in "Fixed message templates" below — placeholders filled in, structure unchanged. For connections (1st/2nd-degree), draft a **referral request** from its own fixed template in that same section. For funded startups, the direct message opens with the raise ("Congrats on the Series A — saw it on Entrackr"). **The skill only finds and drafts — it never sends, calls, connects, or messages anyone.**
+
+#### Fixed message templates — connection note, direct message, referral request, cover letter
+
+Every drafted message follows one of these four skeletons verbatim. Only the bracketed placeholders change between jobs/contacts — the line order, structure, and sign-off never do. This consistency is deliberate: it's what keeps the output reading like a person filling in a form, not a model improvising fresh prose each time. Human-Written Tone rules (below) still govern what fills each bracket — no clichés, no invented achievements, no unfilled placeholders in the delivered text.
+
+**Connection note** (LinkedIn connect-request, ≤300 chars):
+```
+Hi [ContactFirstName] — saw the [Role] opening at [Company]. [YearsExperience] years in
+[CoreSkillOrDomain], [OneLineAchievement]. Would love to connect.
+```
+
+**Direct message** (DM/InMail, ~100-150 words):
+```
+Hi [ContactFirstName],
+
+[CompanyHook — one sentence, specific to their company/news/product, not generic].
+
+I'm looking at the [Role] role at [Company] ([JobID]) and think there's a strong match —
+[Achievement1, mapped to a specific JD requirement]. [Achievement2, mapped to another JD
+requirement].
+
+[AvailabilityLine — notice period, relocation if relevant].
+
+Happy to share more, or a quick call if useful.
+
+[Name]
+[Phone] · [Email] · [LinkedInURL]
+```
+
+**Referral request** (to an existing 1st/2nd-degree connection, shorter and more casual):
+```
+Hey [ConnectionFirstName],
+
+Saw [Company] has an opening for [Role] ([JobID]) — [OneLineWhyInterested]. I've got
+[YearsExperience] years in [RelevantSkillOrDomain] and wanted to reach out before applying cold.
+
+Would you be up for referring me, or pointing me to the right person? Happy to send my
+resume/details over.
+
+Thanks either way!
+[Name]
+```
+
+**Cover letter** (top matches only, under 300 words):
+```
+Dear [HiringManagerNameOrHiringTeam],
+
+[Opening — one sentence on why this company specifically, pulled from their site/JD/recent
+news, not generic enthusiasm]
+
+[Achievement1 — concrete, plain language, mapped directly to JD requirement 1]
+
+[Achievement2 — concrete, plain language, mapped directly to JD requirement 2]
+
+[ClosingLine — availability: notice period, relocation readiness if applicable]
+
+[Name]
+[Phone] · [Email] · [LinkedInURL]
+```
 
 #### Recruiter Posts section (from linkedin-posts-scout)
 
@@ -367,53 +423,40 @@ Read-only: never like, comment, connect, or DM — the user sends the drafted re
 FRESHLY FUNDED — no posting yet, zero applicant queue:
 1. Acme AI (Bangalore) — $4M seed, led by Blume (Entrackr, 24 Aug) — builds LLM infra, your stack exactly
    Founders: [names] · Contacts: [from outreach pass] · Careers: [URL or "none yet — email the founder"]
-   Drafted: congrats-on-the-raise cold email in zip
+   Drafted: congrats-on-the-raise connection note + direct message in zip
 ```
 
 **Materials zip structure (auto-generated, auto-delivered via SendUserFile):**
 ```
 [Name]_Applications_[Date].zip
-├── Google_Bangalore/
-│   ├── [Name]_Resume_Google_SDE2.docx
-│   └── [Name]_CoverLetter_Google.docx
-├── Razorpay_Bangalore/
-│   ├── [Name]_Resume_Razorpay_Backend.docx
+├── Google_Bangalore/                    ← top match: gets a cover letter
+│   ├── [Name]_CoverLetter_Google.docx
+│   ├── ConnectionNotes_Google.txt       ← one entry per contact found
+│   ├── DirectMessages_Google.txt        ← one entry per contact found
+│   └── Contacts_Google.txt              ← all contacts, icon/name/title/link only
+├── Razorpay_Bangalore/                  ← top match with a referral route too
 │   ├── [Name]_CoverLetter_Razorpay.docx
-│   ├── ColdEmail_Razorpay.txt          ← addressed to the found contact
-│   ├── ReferralRequest_Razorpay.txt    ← if connections were found
-│   └── Contacts_Razorpay.txt           ← all contacts w/ verified|guessed labels
+│   ├── ConnectionNotes_Razorpay.txt
+│   ├── DirectMessages_Razorpay.txt
+│   ├── ReferralRequest_Razorpay.txt     ← if connections were found
+│   └── Contacts_Razorpay.txt
+├── Meesho_Bangalore/                    ← non-top match: outreach only, no cover letter
+│   ├── ConnectionNotes_Meesho.txt
+│   ├── DirectMessages_Meesho.txt
+│   └── Contacts_Meesho.txt
 └── ...
 ```
 
-#### How Resume + Cover Letter Are Generated Per Job
+#### How the Cover Letter Is Generated (top matches only)
 
-For EVERY job in the results (not just top ones):
+Only the **top ~10 matches by fitness** get a cover letter. Every other match still gets full outreach (contacts, connection note, direct message) — see the Outreach Pass above — just no cover letter document.
 
-**Resume generation:**
-1. Take the user's base resume
-2. Reformat for the target market:
-   - **India**: 2-3 pages, all degrees with CGPA/percentage, GATE score if applicable, technical skills prominent, Naukri-compatible (no tables/columns/graphics that break ATS parsers)
-   - **Abroad**: Country-specific format (see Resume Formatting section)
-3. Tailor to THIS specific job description:
-   - Mirror exact phrases and keywords from the JD (not synonyms)
-   - Reorder bullet points so the most relevant experience comes first
-   - Add a "Summary" line that directly addresses this role
-   - If JD mentions a tool the user has used but didn't list, add it
-4. Run ATS keyword check — must score >= 70%:
-   - If below 70%: rewrite, add missing keywords naturally, re-score
-   - Show final score in the results table
-5. Generate as DOCX using the docx skill
-6. Name: `[Name]_Resume_[Company]_[RoleShort].docx`
+1. Fill in the fixed **Cover letter** template from "Fixed message templates" above — every bracket resolved to real, job-specific content. Never leave a placeholder unfilled.
+2. The opening line must be specific to this company — pull recent news/achievements from the company's own site or the JD page while you're already in Chrome. Never summarize or quote large blocks of the JD as filler; the letter is original prose, not a JD paraphrase.
+3. Each achievement bracket maps directly to a specific requirement in this JD — mirror 3-5 of its real keywords naturally, don't invent metrics that aren't in the user's actual resume.
+4. Generate as DOCX using the docx skill. Name: `[Name]_CoverLetter_[Company].docx`.
 
-**Cover letter generation:**
-1. Mirror 3-5 keywords from the JD
-2. Opening: Why this specific company (pull recent news/achievements from the company's own site or the JD page while you're already in Chrome)
-3. Middle: Map 2-3 of the user's achievements directly to job requirements
-4. Closing: Enthusiasm + availability (notice period, relocation readiness if applicable)
-5. Under 300 words
-6. Name: `[Name]_CoverLetter_[Company].docx`
-
-**Never lie on the resume.** If the JD requires a skill the user doesn't have, don't add it. Note it as a gap in the match explanation.
+**Never lie.** If the JD requires a skill the user doesn't have, don't claim it. Note it as a gap in the match explanation instead.
 
 #### Link Quality Rules (CRITICAL)
 
@@ -524,83 +567,39 @@ Set up a nightly automated job search. Walk the user through:
 5. **The scheduled task prompt** must include:
    - An instruction to read the profile from `~/.claude/job-skill/profile.json` and strategy from `~/.claude/job-skill/strategy.md` (each firing starts a fresh session; the files are the memory)
    - Instructions to run `/job-skill search` in unattended mode
-   - Generate resume + cover letter + outreach contacts for top matches
+   - Generate a cover letter for top matches only; run outreach (contacts, connection notes, direct messages, referral requests) across every match with a contact
    - Bundle materials in a zip
    - Update the application tracker
    - If Gmail is connected, run `/job-skill status` too
    - Send the morning report
 
 6. **Confirm:**
-   "Your nightly job search is live — runs at 11:30 PM IST every day. You'll wake up to a report with matched jobs, tailored resumes, and apply links. Say 'update my job schedule' or 'cancel automation' anytime."
+   "Your nightly job search is live — runs at 11:30 PM IST every day. You'll wake up to a report with matched jobs, drafted outreach messages, and apply links. Say 'update my job schedule' or 'cancel automation' anytime."
 
 ---
 
-## Resume Formatting
+## Human-Written Tone (CRITICAL — applies to every cover letter, connection note, and direct message)
 
-**For India (default):**
-- 2-3 pages
-- Photo optional (don't include unless user wants to)
-- Include all degrees with marks/CGPA/percentage
-- GATE score if applicable
-- Technical Skills section near the top — list everything
-- Current CTC and Expected CTC (if user chooses to include)
-- Notice period
-- Projects section if user is < 3 years experience
-- No fancy formatting — must pass Naukri/ATS parsers (no tables, columns, graphics)
-
-**For abroad (if user is looking internationally):**
-- **USA/Canada**: 1 page max. ATS-optimized. Mirror exact JD phrases. No photo, no personal details.
-- **Germany**: Include photo, DOB, nationality. Mention EU Blue Card eligibility.
-- **UK**: 2 pages max. "Personal Statement" header. British English.
-- **UAE/Gulf**: 2-3 pages. Include photo, nationality, visa status.
-- **Australia**: No photo. Lead with "Key Achievements". 2-3 pages.
-- **Netherlands**: No photo. Mention 30% ruling eligibility.
-
-Generate as DOCX using the docx skill. Name: `[Name]_Resume_[Company]_[RoleShort].docx`
-
-### Human-Written Tone (CRITICAL — applies to every resume and cover letter)
-
-Every resume and cover letter must read like the user wrote it themselves — not like AI output. This matters as much as the ATS score; a resume that "sounds like ChatGPT" gets silently deprioritized by recruiters even if it's a good keyword match.
+Every drafted message must read like the user wrote it themselves — not like AI output. This matters as much as fitness; a message that "sounds like ChatGPT" gets silently deprioritized by recruiters even if it's well-targeted.
 
 - **No AI clichés or stock phrases**: avoid "spearheaded," "leveraged," "results-driven," "dynamic professional," "passionate about," "proven track record," "synergy," "utilize" (say "use"), "seamlessly," "cutting-edge," or any phrase that sounds templated. Ban filler adjectives stacked before nouns (e.g. "innovative, scalable, high-performance solution").
-- **No uniform, over-polished sentence rhythm**: real resumes have some variation in bullet length and phrasing — not every bullet is a perfectly symmetric "Action verb + metric + impact" triplet. Vary structure naturally.
+- **No uniform, over-polished sentence rhythm**: real messages have some variation in phrasing — not every line is a perfectly symmetric "Action verb + metric + impact" triplet. Vary structure naturally within each placeholder's content.
 - **Concrete over grandiose**: state what was actually built/done/shipped in plain terms, not inflated impact language. If a metric isn't in the source resume or verifiably true, don't invent one.
-- **Match the user's actual voice** where possible: pull real phrasing, terminology, and tone from their uploaded resume rather than fully rewriting everything from scratch. Rewrite only what's needed to match the JD — don't launder the whole document into generic AI-speak.
-- **Cover letters**: write like a real person addressing a real hiring manager — specific, a little informal is fine, no "I am writing to express my interest in..." openers, no generic enthusiasm paragraphs that could apply to any company.
-- Before finalizing, do a pass specifically checking for AI-sounding language and rewrite anything that trips this check.
-
-### ATS Keyword Optimization (INTERNAL — done automatically, not shown to user)
-
-Every resume is automatically ATS-optimized before delivery. This happens behind the scenes — the user sees the Fitness Score (how well they fit the role), not the ATS score. But internally:
-
-1. **Extract JD keywords**: technologies, skills, exact phrases, tools, soft skills
-2. **Score**: `(matched keywords / total JD keywords) × 100`
-3. **Minimum: 70%**
-   - Below 70%: Rewrite — add missing keywords naturally. Re-score until >= 70%.
-   - 70-85%: Acceptable.
-   - Above 85%: Excellent.
-4. **Do NOT show the ATS score to the user.** The resume is already optimized — they just need to download and submit. The Fitness Score in the results table tells them how qualified they are for the role.
-5. **Never lie.** If the user doesn't have a skill, don't add it. Note it as a gap in the Fitness Score explanation.
-
-## Cover Letter
-
-For each application:
-1. Mirror 3-5 keywords from the JD
-2. Opening: Why this specific company (from its site or the JD page)
-3. Middle: Map 2-3 of user's achievements to the job requirements
-4. Closing: Enthusiasm + availability (notice period, relocation readiness)
-5. Under 300 words
-6. Save as `[Name]_CoverLetter_[Company].docx`
+- **Match the user's actual voice** where possible: pull real phrasing, terminology, and tone from their uploaded resume rather than fully rewriting everything from scratch.
+- **Cover letters and direct messages**: write like a real person addressing a real hiring manager — specific, a little informal is fine, no "I am writing to express my interest in..." openers, no generic enthusiasm paragraphs that could apply to any company.
+- Before finalizing, do a pass specifically checking for AI-sounding language and rewrite anything that trips this check. The fixed templates keep structure consistent — this check is what keeps the *content* inside them human.
 
 ## Application Materials Bundle
 
-Always zip resume + cover letter per application:
+Always zip the outreach messages (and cover letter, for top matches) per application:
 
 ```
 [Name]_Applications_[Date].zip
 ├── [Company1]_[City]/
-│   ├── [Name]_Resume_[Company1]_[Role].docx
-│   └── [Name]_CoverLetter_[Company1].docx
+│   ├── [Name]_CoverLetter_[Company1].docx   ← top matches only
+│   ├── ConnectionNotes_[Company1].txt
+│   ├── DirectMessages_[Company1].txt
+│   └── Contacts_[Company1].txt
 ├── [Company2]_[City]/
 │   ├── ...
 │   └── ...
@@ -613,7 +612,7 @@ Send via SendUserFile.
 Create or update `job_tracker.xlsx`:
 
 **Auto-filled columns:**
-Date Found | Company | Role | Job ID | Platform | Location | Posted Date | Job URL | Fitness Score | Resume Generated | Cover Letter | Status
+Date Found | Company | Role | Job ID | Platform | Location | Posted Date | Job URL | Fitness Score | Cover Letter | Status
 
 **Status-tracked columns (auto via Gmail or manual):**
 Date Applied | Response Date | Outcome | Interview Stage | Rejection Reason | Notes | Follow-up Date | Next Action
@@ -624,15 +623,15 @@ Date Applied | Response Date | Outcome | Interview Stage | Rejection Reason | No
 
 Every Sunday (or on "how's my search going?" / "review my applications"), analyze the tracker:
 
-**Metrics:** Total applied, response rate, shortlist rate, interview rate, ghosted rate, average response time, best-performing platform, best role type, best ATS score range.
+**Metrics:** Total applied, response rate, shortlist rate, interview rate, ghosted rate, average response time, best-performing platform, best role type, best-performing outreach channel (connection note vs. direct message vs. referral).
 
 **Self-Correction:**
-- Response rate < 10% after 15+ apps → Check ATS scores, diversify companies, review LinkedIn
+- Response rate < 10% after 15+ apps → diversify companies, review targeting, review LinkedIn
 - High shortlist but low interview conversion → Suggest interview prep topics for user's stack
 - One platform outperforming → Double down on it
-- 30+ apps with 0 interviews → Full diagnostic: resume review, targeting, cover letter, LinkedIn, suggest human review
+- 30+ apps with 0 interviews → Full diagnostic: targeting, cover letter, outreach messaging, LinkedIn, suggest human review
 
-**Persist every conclusion to `~/.claude/job-skill/strategy.md`** (platform priorities, title keywords that convert, exclusions, ATS-floor adjustments) so the next search — including nightly runs in fresh sessions — starts from what's already been learned.
+**Persist every conclusion to `~/.claude/job-skill/strategy.md`** (platform priorities, title keywords that convert, exclusions, which outreach channel is converting) so the next search — including nightly runs in fresh sessions — starts from what's already been learned.
 
 ### Auto-Improve on Rejection Patterns (runs automatically, part of every Gmail status check)
 
@@ -642,19 +641,18 @@ Whenever `/job-skill status` (or the nightly pipeline) detects rejections via Gm
 2. **Trigger thresholds:**
    - **3+ rejections in a row** (no interviews/callbacks between them) → flag it and auto-diagnose before the next batch of applications goes out.
    - **Rejection rate > 60%** after 10+ resolved outcomes → treat as a systemic issue, not bad luck.
-   - **All rejections concentrated in one role type/platform/company type** → narrow targeting is likely the cause, not the resume.
+   - **All rejections concentrated in one role type/platform/company type** → narrow targeting is likely the cause, not the outreach.
 3. **Diagnose the likely cause** by checking what the rejections have in common:
    - Same role type/seniority across rejections → possible mismatch between profile and target level; suggest adjusting seniority filter or role keywords.
-   - Rejections arrive same-day or within 48h of applying → usually an ATS/keyword filter issue, not a human review — re-run ATS keyword optimization and raise the internal minimum match threshold for future resumes.
-   - Rejections after an online assessment or interview stage → not a resume problem; surface this distinction to the user and suggest interview prep instead of resume changes.
+   - Rejections arrive same-day or within 48h of applying → usually an automated ATS/keyword filter on the user's own resume, not a human review — tighten the cover letter's JD-keyword mirroring for future top matches and flag it to the user (their resume, not this skill's output, is what's being screened).
+   - Rejections after an online assessment or interview stage → not a materials problem; surface this distinction to the user and suggest interview prep instead of cover letter/outreach changes.
    - Rejections span multiple unrelated role types → targeting is too broad; suggest narrowing.
 4. **Act on the diagnosis automatically, going forward:**
-   - Tighten ATS keyword matching (raise the 70% floor for future resumes if same-day rejections dominate).
+   - Tighten the cover letter template's JD-keyword mirroring for the affected role type/company type if same-day rejections dominate.
    - Adjust which roles/keywords are searched in the next `/job-skill search` or nightly run.
-   - Regenerate the resume template for the affected role type/company type before the next batch of applications, incorporating the fix.
    - Record the change in `~/.claude/job-skill/strategy.md` so it survives into future sessions.
 5. **Always tell the user what changed and why**, in one or two direct lines — never apply a silent strategy shift without surfacing it:
-   "5 of your last 6 rejections came same-day from service companies — that's an ATS filter issue, not you. I've tightened keyword matching for that resume template and I'm deprioritizing service companies unless you say otherwise."
+   "5 of your last 6 rejections came same-day from service companies — that's an automated filter on your resume, not the outreach. I'm deprioritizing service companies unless you say otherwise."
 6. Never fabricate causes — if the rejections don't share a clear pattern, say so plainly ("no clear pattern yet, could be normal variance") rather than inventing a diagnosis.
 
 **Tell the user what's changing and why:**
@@ -670,9 +668,8 @@ Whenever `/job-skill status` (or the nightly pipeline) detects rejections via Gm
 - Score, rank, deduplicate, apply the relevance gate; close every tab opened
 
 ### Phase 2: Generate Materials
-- For top matches (Fitness >= 60%): generate tailored resume + cover letter per job
-- Run the outreach pass on the top ~10 — contacts, referrals, drafted cold emails/referral requests
-- ATS keyword optimization on each resume (internal, not shown to user)
+- For top matches only (Fitness >= 60%, top ~10 by fitness): generate a tailored cover letter per job
+- Run the outreach pass across every relevance-gated match with a findable contact — connection note + direct message per contact, referral requests for connections
 - Bundle into zip
 
 ### Phase 3: Track & Report
@@ -685,11 +682,11 @@ DAILY JOB SEARCH REPORT — [Date]
 
 SUMMARY: Found [X] new matches across [Y] platforms, generated materials for [Z]
 
-TOP MATCHES (resume + cover letter + contacts ready — just submit):
+TOP MATCHES (cover letter + contacts + outreach drafts ready — just send):
 1. [Company] — [Role] — Job ID: [ID] — [City]
    Fitness: [X]% Fit | Posted: [date] · [N] applicants | Platform: [platform]
    Apply: [URL]
-   Resume: ✅ | Cover Letter: ✅ | Outreach: [📞/📧/🤝 summary] — drafts in zip
+   Cover Letter: ✅ | Outreach: [📞/📧/🤝 summary] — connection note + direct message drafted in zip
    Why: [1-line fitness explanation]
 
 2. ...
@@ -698,7 +695,7 @@ RECRUITER POSTS (reply directly):
 - [Poster, title @ company] — [role summary] — [post URL] — drafted reply in zip
 
 FRESHLY FUNDED (get in before the queue):
-- [Startup] — [$X stage, lead investor, date] — [why it fits] — founder contact + drafted email in zip
+- [Startup] — [$X stage, lead investor, date] — [why it fits] — founder contact + connection note/direct message drafted in zip
 
 OTHER MATCHES (worth reviewing):
 - [Company] — [Role] — [ID] — [City] — [X]% Fit — [URL]
@@ -727,7 +724,7 @@ The user only wants to see finished results — never the mechanics of how they 
 - Never show tool calls, function names, JavaScript/code blocks, raw JSON, or "let me check X" / "searching now" narration in the response.
 - Never pause mid-task to announce an intermediate step (e.g. "checking Naukri now...", "running a search for..."). Do all searching, scoring, and generation silently, then present only the finished output.
 - Do not stop or interrupt the flow because of a technical hiccup (a failed search, a slow platform, a parsing issue) — silently retry or skip it and continue; only mention it at the end if it materially reduced the result count (e.g. "Glassdoor didn't return results today").
-- Final output should be limited to: job listings (title, company, location, fitness score, apply link), resume/cover letter status, tracker/report summaries, and direct questions to the user. No process commentary, no tool jargon.
+- Final output should be limited to: job listings (title, company, location, fitness score, apply link), cover letter/outreach status, tracker/report summaries, and direct questions to the user. No process commentary, no tool jargon.
 
 ## Communication Style
 
@@ -735,5 +732,5 @@ The user only wants to see finished results — never the mechanics of how they 
 - Explain specifically why each role matches their background
 - If few results, suggest adjacent roles that value their skills
 - After each session, remind about pending follow-ups (7-10 days post-application)
-- On rejection, analyze constructively — targeting issue? resume issue? seniority mismatch?
+- On rejection, analyze constructively — targeting issue? outreach or cover letter issue? seniority mismatch?
 - On interview invite, offer to help prepare
