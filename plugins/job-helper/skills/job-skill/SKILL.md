@@ -73,7 +73,7 @@ Display this usage guide and stop. Do NOT proceed to search or apply — just sh
 **4 Commands:**
 
 - `/job-skill help` — You're reading it. Shows all capabilities.
-- `/job-skill search` — Fans out up to 17 parallel scouts (one per platform — no scout ever splits attention across multiple job boards) across your Chrome browser using your own logged-in sessions, so it sees the same live listings you would. Only fresh postings survive (≤7 days old, ranked by applicant count — apply before the queue forms), and anything you've already applied to (per your tracker or the platform's own "Applied" badge) never resurfaces. Beyond job boards it harvests LinkedIn recruiter "hiring" posts and freshly funded startups (pre-seed to Series A) where no job is even posted yet. For every match with a findable contact: recruiter/founder/CTO contact details (email, phone, LinkedIn — whatever is publicly findable) with a drafted, personalized LinkedIn connection note + direct message per contact, plus your 1st/2nd-degree connections at the company with a drafted referral request. For your strongest matches: a tailored cover letter. Returns everything bundled in a zip.
+- `/job-skill search` — Fans out up to 17 scouts (one per platform — no scout ever splits attention across multiple job boards) across your Chrome browser using your own logged-in sessions, running in batches of 5 to keep the browser from freezing, so it sees the same live listings you would. Only fresh postings survive (≤7 days old, ranked by applicant count — apply before the queue forms), and anything you've already applied to or were already shown last run (per your tracker, the platform's own "Applied" badge, or last run's result list) never resurfaces. Beyond job boards it harvests LinkedIn recruiter "hiring" posts and freshly funded startups (pre-seed to Series A) where no job is even posted yet. For every match with a findable contact: recruiter/founder/CTO contact details (email, phone, LinkedIn — whatever is publicly findable) with a drafted, personalized LinkedIn connection note + direct message per contact, plus your 1st/2nd-degree connections at the company with a drafted referral request. For your strongest matches: a tailored cover letter. Returns everything bundled in a zip.
 - `/job-skill automate` — Set up a nightly automated search that runs while you sleep. Delivers a morning report with matches + ready-to-send outreach messages and top-match cover letters.
 - `/job-skill status` — Check the status of your applications. Connects to Gmail to automatically detect rejections, interview invites, and acknowledgments. Falls back to manual tracking if Gmail isn't connected.
 
@@ -90,9 +90,9 @@ India: Instahyre, Cutshort, Hirist, Naukri, LinkedIn, Indeed India + GCC/product
 
 **What it does:**
 1. Remembers your profile permanently (`~/.claude/job-skill/`) — set up once, never asked again
-2. Runs up to 17 parallel scouts in your own Chrome session, one per platform, each many pages deep
+2. Runs up to 17 scouts in your own Chrome session, one per platform, each many pages deep — in batches of 5 so the browser doesn't run out of memory
 3. Keeps ONLY fresh postings (≤7 days) and ranks by callback odds — freshness × applicant count × recruiter activity
-4. Skips irrelevant roles entirely — no off-stack, wrong-seniority, unsponsored-abroad, or already-applied filler in your list
+4. Skips irrelevant roles entirely — no off-stack, wrong-seniority, unsponsored-abroad, already-applied, or already-shown-last-run filler in your list
 5. For your strongest matches: a tailored cover letter for THAT specific job
 6. For EVERY match with a findable contact: recruiter/founder/CTO contact details (email/phone/LinkedIn) + a drafted, personalized connection note and direct message per contact — your edge over the applicant queue
 7. Detects your 1st/2nd-degree connections at each company + drafts the referral request
@@ -130,7 +130,19 @@ If running as a scheduled task or unattended session:
 - Posted in last 24h / 48h / 7 days? (default 7 days — nothing older is ever kept)
 - CTC range filter?
 
-Before spawning any scouts, read `job_tracker.xlsx` (if it exists) and build an exclusion set: every company+job_id (or company+role when job_id is missing) whose `Status` is anything past "Ready to Apply" — Applied, Acknowledged, Online Assessment, Interview Round 1/2, HR Round, Offer, Rejected, or Ghosted. Pass this set into every scout's exclusion list (see "Every scout prompt MUST contain" below) so already-applied jobs never resurface, in every search — not just nightly runs.
+Before spawning any scouts, build one combined exclusion set from two sources:
+1. `job_tracker.xlsx` (if it exists) — every company+job_id (or company+role when job_id is missing) whose `Status` is anything past "Ready to Apply" — Applied, Acknowledged, Online Assessment, Interview Round 1/2, HR Round, Offer, Rejected, or Ghosted.
+2. `~/.claude/job-skill/last_results.json` (if it exists) — every company+job_id (or company+role) shown in the previous run's final table, applied or not. This file holds exactly one run's worth of results (not cumulative history), so it always means "what I showed you last time" — see "Previous-run dedup" below.
+
+Pass the combined set into every scout's exclusion list (see "Every scout prompt MUST contain" below) so already-applied jobs AND jobs already shown last run never resurface, in every search — not just nightly runs.
+
+##### Previous-run dedup (`last_results.json`)
+
+`~/.claude/job-skill/last_results.json` is a flat JSON array, one entry per job in the last completed search's final presented table: `{company, job_id, role, platform, date_found}`. It is independent of the tracker exclusion above — a job the user hasn't applied to yet still gets dropped here if it was already shown once, so the same untouched listing doesn't keep reappearing run after run.
+
+- **Read** it before spawning scouts (previous step) and again at the relevance gate (below) as a second safety net.
+- **Write** it once, right after the final table is presented (interactive search and nightly Phase 1/2 alike): overwrite the file with *this* run's full final list, replacing whatever was there. Never append or accumulate across runs.
+- If the file doesn't exist yet (first-ever run), skip the read and just write it at the end.
 
 Then run the search across ALL platforms.
 
@@ -140,9 +152,18 @@ Jobs are found by **driving the user's own Chrome browser**, not by web search. 
 
 **Search the platforms in parallel using subagents, not one at a time.** A sequential crawl of 12+ platforms at real depth takes too long and, in practice, stops at page one of each — which is the single biggest cause of a thin result set. Fan the work out instead.
 
-##### Spawn the scouts — maximum parallelism
+##### Spawn the scouts — batches of 5
 
-Use the Agent tool to launch ALL applicable scouts concurrently, in ONE message with one tool call per scout. **One scout, one platform — never bundle multiple job boards into a single scout.** A scout splitting attention across several platforms crawls each one shallowly; a scout with exactly one job goes deeper and returns more. Scope the set to the profile: India + startup/remote scouts always run; abroad scouts only if the profile targets that country.
+Launching all applicable scouts (up to 17) in one message drives that many concurrent Chrome tabs and has frozen the browser under low memory. Instead, use the Agent tool in **fixed batches of 5**: one message with up to 5 scout tool calls, wait for every scout in that batch to finish (reported back via SendMessage, or dropped after timing out) before sending the next batch's message. **One scout, one platform — never bundle multiple job boards into a single scout.** A scout splitting attention across several platforms crawls each one shallowly; a scout with exactly one job goes deeper and returns more. Scope the set to the profile: India + startup/remote scouts always run; abroad scouts only if the profile targets that country.
+
+Default batching order over the scout table below — skip any scout the profile doesn't call for, but keep batches at ≤5 and keep this order so tab load stays predictable:
+
+- **Batch 1**: `instahyre-scout, cutshort-scout, naukri-scout, hirist-scout, indeed-scout`
+- **Batch 2**: `linkedin-jobs-scout, linkedin-posts-scout, india-careers-scout, wellfound-scout, yc-scout`
+- **Batch 3**: `welcome-to-jungle-scout, himalayas-scout, weworkremotely-scout, funded-startups-scout`
+- **Batch 4** (conditional, only the scouts the profile's target countries call for): `germany-scout, uk-scout, us-scout`
+
+Run the cleanup sweep (below) once, after the last batch — not between batches, since a scout still mid-run in a later batch hasn't opened its tab yet.
 
 | Scout | Owns |
 |---|---|
@@ -230,7 +251,7 @@ With 60+ listings, hand-writing a cover letter for every one is not practical �
 
 Weight the fitness score toward the user's **core** stack rather than raw keyword breadth. A JD that lists twelve technologies will otherwise outrank a JD that names exactly what the user does. Verify before shipping: check the cover letter never claims a skill the user doesn't have, that no two cover letters share a duplicated paragraph, and that per-company output folders have unique names.
 
-**Relevance gate (hard-drop before presenting):** off-discipline titles, core-stack mismatches, listings whose required YoE is more than 2 years from the user's, abroad listings without a sponsorship signal, anything below 60% fitness, and anything matching the tracker exclusion set (already Applied or beyond). Stack/YoE mismatches and applied-status should already be filtered out by each scout (see "Every scout prompt MUST contain" above) — this gate is the second safety net, not the only check. Don't show any of these as "stretch" rows — drop them. Exception: if the whole search yields fewer than 10 results, up to 3 clearly-labeled stretch roles may be included.
+**Relevance gate (hard-drop before presenting):** off-discipline titles, core-stack mismatches, listings whose required YoE is more than 2 years from the user's, abroad listings without a sponsorship signal, anything below 60% fitness, anything matching the tracker exclusion set (already Applied or beyond), and anything matching an entry in the previous run's result list (`last_results.json` — see "Previous-run dedup" above). Stack/YoE mismatches, applied-status, and previous-run repeats should already be filtered out by each scout (see "Every scout prompt MUST contain" above) — this gate is the second safety net, not the only check. Don't show any of these as "stretch" rows — drop them. Exception: if the whole search yields fewer than 10 results, up to 3 clearly-labeled stretch roles may be included.
 
 **Ranking by callback odds, not fitness alone:** order the final list by fitness adjusted for freshness and competition. A 75%-fit role posted 8 hours ago with 20 applicants outranks an 85%-fit role that's 6 days old with 400 applicants; an active recruiter is a boost. Surface the reason in each explanation line ("posted 8h ago, 23 applicants — apply today"). Duplicates across platforms: keep one row, preferring the direct ATS/careers link over aggregator or Easy Apply links — direct applications get reviewed first.
 
@@ -484,6 +505,8 @@ Only the **top ~10 matches by fitness** get a cover letter. Every other match st
 4. Never show a link you haven't loaded this session
 5. Postings older than 7 days never appear (freshness rule); if a borderline one slips through with an unclear date, flag it "⚠️ verify date before applying"
 
+Immediately after presenting the final table, overwrite `~/.claude/job-skill/last_results.json` with this run's full final list (`{company, job_id, role, platform, date_found}` per row) — see "Previous-run dedup" above.
+
 ---
 
 ### `/job-skill status`
@@ -680,10 +703,11 @@ Whenever `/job-skill status` (or the nightly pipeline) detects rejections via Gm
 
 ### Phase 1: Search
 - Read `~/.claude/job-skill/profile.json` + `strategy.md` first — they are the memory between firings
-- Spawn ALL applicable parallel scouts (see How Searching Works; `model: sonnet` on every one) for jobs posted in the last 24-48 hours (use each site's freshness filter where it has one)
-- Pass each scout the user's full profile and the exclusion list — same tracker-exclusion-set mechanism as interactive `/job-skill search` (see "How Searching Works" above), so it never re-reports a job already tracked at Applied stage or later
+- Spawn all applicable scouts in batches of 5 (see "Spawn the scouts — batches of 5"; `model: sonnet` on every one) for jobs posted in the last 24-48 hours (use each site's freshness filter where it has one)
+- Pass each scout the user's full profile and the combined exclusion list — same tracker-exclusion-set + `last_results.json` mechanism as interactive `/job-skill search` (see "How Searching Works" above), so it never re-reports a job already tracked at Applied stage or later, or already shown in the previous run
 - If Chrome isn't reachable, report that instead of an empty search — don't fabricate listings
 - Score, rank, deduplicate, apply the relevance gate; close every tab opened and delete any tab groups left behind (cleanup sweep — see "Collecting results" above)
+- After presenting the report (Phase 3), overwrite `last_results.json` with this run's final list, same as interactive search
 
 ### Phase 2: Generate Materials
 - For top matches only (Fitness >= 60%, top ~10 by fitness): generate a tailored cover letter per job
