@@ -73,7 +73,7 @@ Display this usage guide and stop. Do NOT proceed to search or apply — just sh
 **4 Commands:**
 
 - `/job-skill help` — You're reading it. Shows all capabilities.
-- `/job-skill search` — Fans out up to 9 parallel scouts across your Chrome browser using your own logged-in sessions, so it sees the same live listings you would. Only fresh postings survive (≤7 days old, ranked by applicant count — apply before the queue forms). Beyond job boards it harvests LinkedIn recruiter "hiring" posts and freshly funded startups (pre-seed to Series A) where no job is even posted yet. For every match with a findable contact: recruiter/founder/CTO contact details (email, phone, LinkedIn — whatever is publicly findable) with a drafted, personalized LinkedIn connection note + direct message per contact, plus your 1st/2nd-degree connections at the company with a drafted referral request. For your strongest matches: a tailored cover letter. Returns everything bundled in a zip.
+- `/job-skill search` — Fans out up to 17 parallel scouts (one per platform — no scout ever splits attention across multiple job boards) across your Chrome browser using your own logged-in sessions, so it sees the same live listings you would. Only fresh postings survive (≤7 days old, ranked by applicant count — apply before the queue forms), and anything you've already applied to (per your tracker or the platform's own "Applied" badge) never resurfaces. Beyond job boards it harvests LinkedIn recruiter "hiring" posts and freshly funded startups (pre-seed to Series A) where no job is even posted yet. For every match with a findable contact: recruiter/founder/CTO contact details (email, phone, LinkedIn — whatever is publicly findable) with a drafted, personalized LinkedIn connection note + direct message per contact, plus your 1st/2nd-degree connections at the company with a drafted referral request. For your strongest matches: a tailored cover letter. Returns everything bundled in a zip.
 - `/job-skill automate` — Set up a nightly automated search that runs while you sleep. Delivers a morning report with matches + ready-to-send outreach messages and top-match cover letters.
 - `/job-skill status` — Check the status of your applications. Connects to Gmail to automatically detect rejections, interview invites, and acknowledgments. Falls back to manual tracking if Gmail isn't connected.
 
@@ -90,9 +90,9 @@ India: Instahyre, Cutshort, Hirist, Naukri, LinkedIn, Indeed India + GCC/product
 
 **What it does:**
 1. Remembers your profile permanently (`~/.claude/job-skill/`) — set up once, never asked again
-2. Runs up to 9 parallel scouts in your own Chrome session, each many pages deep
+2. Runs up to 17 parallel scouts in your own Chrome session, one per platform, each many pages deep
 3. Keeps ONLY fresh postings (≤7 days) and ranks by callback odds — freshness × applicant count × recruiter activity
-4. Skips irrelevant roles entirely — no off-stack, wrong-seniority, or unsponsored-abroad filler in your list
+4. Skips irrelevant roles entirely — no off-stack, wrong-seniority, unsponsored-abroad, or already-applied filler in your list
 5. For your strongest matches: a tailored cover letter for THAT specific job
 6. For EVERY match with a findable contact: recruiter/founder/CTO contact details (email/phone/LinkedIn) + a drafted, personalized connection note and direct message per contact — your edge over the applicant queue
 7. Detects your 1st/2nd-degree connections at each company + drafts the referral request
@@ -130,6 +130,8 @@ If running as a scheduled task or unattended session:
 - Posted in last 24h / 48h / 7 days? (default 7 days — nothing older is ever kept)
 - CTC range filter?
 
+Before spawning any scouts, read `job_tracker.xlsx` (if it exists) and build an exclusion set: every company+job_id (or company+role when job_id is missing) whose `Status` is anything past "Ready to Apply" — Applied, Acknowledged, Online Assessment, Interview Round 1/2, HR Round, Offer, Rejected, or Ghosted. Pass this set into every scout's exclusion list (see "Every scout prompt MUST contain" below) so already-applied jobs never resurface, in every search — not just nightly runs.
+
 Then run the search across ALL platforms.
 
 #### How Searching Works — Parallel Scouts in Chrome
@@ -140,19 +142,29 @@ Jobs are found by **driving the user's own Chrome browser**, not by web search. 
 
 ##### Spawn the scouts — maximum parallelism
 
-Use the Agent tool to launch ALL applicable scouts concurrently, in ONE message with one tool call per scout. Scope the set to the profile: India scouts always run; abroad scouts only if the profile targets that country.
+Use the Agent tool to launch ALL applicable scouts concurrently, in ONE message with one tool call per scout. **One scout, one platform — never bundle multiple job boards into a single scout.** A scout splitting attention across several platforms crawls each one shallowly; a scout with exactly one job goes deeper and returns more. Scope the set to the profile: India + startup/remote scouts always run; abroad scouts only if the profile targets that country.
 
 | Scout | Owns |
 |---|---|
-| `instahyre-cutshort-scout` | Instahyre + Cutshort — highest signal when logged in; curated product/startup roles |
-| `indian-boards-scout` | Naukri, Hirist, LinkedIn India, Indeed India |
-| `india-careers-scout` | GCC + product + quality-service ATS boards (see target lists below) |
-| `startup-scout` | Wellfound, YC Work at a Startup, Welcome to the Jungle, Himalayas, WeWorkRemotely |
-| `funded-startups-scout` | Freshly funded pre-seed→Series A startups: Entrackr/Inc42/YourStory funding roundups, Growthlist, VC portfolio job boards |
+| `instahyre-scout` | Instahyre only — highest signal when logged in; curated product/startup roles |
+| `cutshort-scout` | Cutshort only — startup/product focus, direct founder connections |
+| `naukri-scout` | Naukri only |
+| `hirist-scout` | Hirist only |
+| `indeed-scout` | Indeed India only |
+| `linkedin-jobs-scout` | LinkedIn India job listings — search, Recommended feed, low-applicant tagging, recruiter/HR discovery (see Platforms Searched below) |
 | `linkedin-posts-scout` | LinkedIn recruiter "hiring" posts — content search, past week, not job listings |
+| `india-careers-scout` | GCC + product + quality-service ATS boards (see target lists below) |
+| `wellfound-scout` | Wellfound (AngelList) only |
+| `yc-scout` | YC Work at a Startup only |
+| `welcome-to-jungle-scout` | Welcome to the Jungle (Otta) only |
+| `himalayas-scout` | Himalayas only |
+| `weworkremotely-scout` | WeWorkRemotely only |
+| `funded-startups-scout` | Freshly funded pre-seed→Series A startups: Entrackr/Inc42/YourStory funding roundups, Growthlist, VC portfolio job boards |
 | `germany-scout` | Arbeitnow, BerlinStartupJobs, IamExpat, Make it in Germany (only if profile targets Germany) |
 | `uk-scout` | UKHired, LinkedIn/Indeed UK boolean sponsorship search + GOV.UK sponsor-register verification (only if UK) |
 | `us-scout` | Migrate Mate, H1BVisaJobs, LinkedIn sponsorship filter + h1bdata.info LCA verification (only if US) |
+
+That's 14 always-on scouts plus up to 3 conditional abroad scouts (17 max) — up from the old 9-scout, multi-platform-bundled roster.
 
 ##### Subagent model rule (CRITICAL — applies to every Agent call this skill makes)
 
@@ -168,12 +180,16 @@ Every Agent call MUST set the `model` parameter explicitly — never let a subag
 3. **The user's full profile** — stack, years, target roles, locations. Each scout starts with no context.
 4. **Working URL patterns and how to paginate them** (see Platforms Searched below). Tell it explicitly how many pages deep to go.
 5. **The freshness rule**: use each platform's freshness filter for ≤7 days (LinkedIn `f_TPR=r604800`, Indeed `fromage=7`, in-page filters elsewhere) and **hard-skip any listing older than 7 days** — don't return it at all. Capture the **applicant count** (LinkedIn "X applicants", Naukri applicant counter) and **recruiter activity** ("recruiter recently active", employer last-seen) whenever the page shows them.
-6. **The exclusion list** — mass service/staffing companies by name, YoE floors, off-discipline roles, and any jobs already found in an earlier round so it doesn't repeat them.
-7. **An instruction to open each kept listing** and capture the real JD text — a results-page snippet is not enough to tailor a resume from — plus any **recruiter contact details printed on the JD page** (Naukri often shows the recruiter's name, email, and phone; Cutshort/Wellfound show the poster/founder).
-8. **The read-only rule, verbatim**: never click Apply, Save, or Easy Apply; never enter credentials; never solve a CAPTCHA; never submit a form.
-9. **The return contract** — a JSON array with `company, role, job_id, platform, location, posted_date, applicants, recruiter_activity, recruiter_contact, required_yoe, salary, url, stack, jd_excerpt, company_desc` (abroad scouts also return `sponsorship_signal`: the exact JD text or sponsor-register/LCA evidence that sponsorship exists), and only for listings whose page actually loaded.
+6. **The already-applied check**: never return a listing that the platform's own UI already marks as applied to — Instahyre's "Application Sent" tag, Naukri's "Applied X days ago" tag, LinkedIn's "Applied" badge (shown on Easy Apply jobs). This is independent of the tracker exclusion below — it catches jobs applied to outside this tool.
+7. **The exclusion list** — mass service/staffing companies by name, YoE floors, off-discipline roles, any jobs already found in an earlier round so it doesn't repeat them, AND the company+job_id (or company+role) list already tracked at "Applied" stage or later in `job_tracker.xlsx` — drop these too, never re-report them.
+8. **The relevance self-filter**: drop (never return) a listing whose required experience is more than 2 years from the user's YoE, or whose core stack doesn't overlap with the user's — apply this per-listing before returning, don't rely on the orchestrator to catch it after collection.
+9. **An instruction to open each kept listing** and capture the real JD text — a results-page snippet is not enough to tailor a resume from — plus any **recruiter contact details printed on the JD page** (Naukri often shows the recruiter's name, email, and phone; Cutshort/Wellfound show the poster/founder).
+10. **The read-only rule, verbatim**: never click Apply, Save, or Easy Apply; never enter credentials; never solve a CAPTCHA; never submit a form.
+11. **The return contract** — a JSON array with `company, role, job_id, platform, location, posted_date, applicants, recruiter_activity, recruiter_contact, required_yoe, salary, url, stack, jd_excerpt, company_desc` (abroad scouts also return `sponsorship_signal`: the exact JD text or sponsor-register/LCA evidence that sponsorship exists), and only for listings whose page actually loaded.
 
 **Abroad scouts additionally**: a listing qualifies ONLY if sponsorship is explicit in the JD or the employer is a verified sponsor (GOV.UK licensed-sponsor register for UK, h1bdata.info LCA history for US, known Blue Card-scale sponsors for Germany — SAP, Zalando, Delivery Hero, N26, Celonis, Personio, Siemens, Bosch, Big Tech). No sponsorship signal = drop it.
+
+**`linkedin-posts-scout` query pattern**: `linkedin.com/search/results/content/?keywords=%22hiring%22%20[role]&sortBy=date_posted` — content search, not job listings, sorted by recency; scan the past week of results for recruiter/founder posts naming an open role.
 
 **The funded-startups scout is different**: it isn't hunting job listings. It reads this week's funding roundups (`entrackr.com/category/funding`, Inc42's weekly "funding galore", YourStory funding tag, `growthlist.co/india-startups`) and VC portfolio job boards (Peak XV, Accel India, Blume, Elevation, Lightspeed India — find the "portfolio jobs/careers" link on each VC's site), keeps startups whose domain/stack matches the profile, and returns `company, stage, amount_raised, investors, what_they_build, careers_url, founder_names, source_url`. Fresh funding means hiring is imminent — these are opportunities with zero applicant queue.
 
@@ -212,7 +228,7 @@ With 60+ listings, hand-writing a cover letter for every one is not practical �
 
 Weight the fitness score toward the user's **core** stack rather than raw keyword breadth. A JD that lists twelve technologies will otherwise outrank a JD that names exactly what the user does. Verify before shipping: check the cover letter never claims a skill the user doesn't have, that no two cover letters share a duplicated paragraph, and that per-company output folders have unique names.
 
-**Relevance gate (hard-drop before presenting):** off-discipline titles, core-stack mismatches, listings whose required YoE is more than 2 years from the user's, abroad listings without a sponsorship signal, and anything below 60% fitness. Don't show these as "stretch" rows — drop them. Exception: if the whole search yields fewer than 10 results, up to 3 clearly-labeled stretch roles may be included.
+**Relevance gate (hard-drop before presenting):** off-discipline titles, core-stack mismatches, listings whose required YoE is more than 2 years from the user's, abroad listings without a sponsorship signal, anything below 60% fitness, and anything matching the tracker exclusion set (already Applied or beyond). Stack/YoE mismatches and applied-status should already be filtered out by each scout (see "Every scout prompt MUST contain" above) — this gate is the second safety net, not the only check. Don't show any of these as "stretch" rows — drop them. Exception: if the whole search yields fewer than 10 results, up to 3 clearly-labeled stretch roles may be included.
 
 **Ranking by callback odds, not fitness alone:** order the final list by fitness adjusted for freshness and competition. A 75%-fit role posted 8 hours ago with 20 applicants outranks an 85%-fit role that's 6 days old with 400 applicants; an active recruiter is a boost. Surface the reason in each explanation line ("posted 8h ago, 23 applicants — apply today"). Duplicates across platforms: keep one row, preferring the direct ATS/careers link over aggregator or Easy Apply links — direct applications get reviewed first.
 
@@ -222,9 +238,9 @@ Weight the fitness score toward the user's **core** stack rather than raw keywor
 
 | # | Platform | Search URL | What It's Best For |
 |---|----------|------------|-------------------|
-| 1 | **Naukri.com** | `naukri.com/[skill]-jobs-in-[city]` | Largest Indian job board. Query params on this URL are dropped — filter in-page instead. Listing URLs resolve as `naukri.com/job-listings-j-[id]`. Its JSON search API returns 406/recaptcha — scrape rendered pages, never attempt a bypass. |
-| 2 | **LinkedIn India** | `linkedin.com/jobs/search/?keywords=[role]&location=[city]&f_TPR=r86400` | MNC and product roles. `f_TPR=r86400` = last 24h. Job ID is in the listing URL. |
-| 3 | **Instahyre** | `instahyre.com/search-jobs?search=true&job_type=0&company_size=0&offset=0&skills=React.js,Node.js,TypeScript` | Highest signal when logged in. Set `skills=` per query and run several skill sets. The `offset` param is ignored by the SPA — paginate via the in-page pager, and throttle (~2s) to avoid HTTP 429. |
+| 1 | **Naukri.com** | `naukri.com/[skill]-jobs-in-[city]` | Largest Indian job board. Query params on this URL are dropped — filter in-page instead. Listing URLs resolve as `naukri.com/job-listings-j-[id]`. Its JSON search API returns 406/recaptcha — scrape rendered pages, never attempt a bypass. Also run the logged-in homepage's personalized feed (`naukri.com/mnjuser/homepage`, "Jobs you may be interested in" rail) as a second pass. Skip any card tagged "Applied X days ago." |
+| 2 | **LinkedIn India** | `linkedin.com/jobs/search/?keywords=[role]&location=[city]&f_TPR=r86400&sortBy=DD` | MNC and product roles. Run as 4 passes (owned by `linkedin-jobs-scout`): (1) keyword search sorted by date, `f_TPR=r86400` (24h) first, widen to `f_TPR=r604800` (7 days) if thin; (2) the Recommended feed, `linkedin.com/jobs/collections/recommended/` — LinkedIn's own personalized picks for the logged-in user; (3) open each kept listing and read "X applicants" — tag anything under 10 as a low-competition match for ranking; (4) recruiter/HR discovery via people search, `linkedin.com/search/results/people/?keywords=[role]%20hiring&title=Recruiter` (and `Talent Acquisition`) — feed hits into the Recruiter Posts section, labeled by source. Job ID is in the listing URL. Skip any listing tagged "Applied." |
+| 3 | **Instahyre** | `instahyre.com/search-jobs?search=true&job_type=0&company_size=0&offset=0&skills=React.js,Node.js,TypeScript` | Highest signal when logged in. Set `skills=` per query and run several skill sets. The `offset` param is ignored by the SPA — paginate via the in-page pager, and throttle (~2s) to avoid HTTP 429. Skip any listing tagged "Application Sent." |
 | 4 | **Cutshort** | `cutshort.io/jobs/[skill]-jobs-in-[city]` | Startup and product company focus. Direct founder connections. |
 | 5 | **Hirist** | `hirist.tech/search/[keyword]-jobs` | Premium tech jobs. Note the pattern is `/search/<kw>-jobs`, NOT `/search/q-<kw>-jobs-in-<city>` (that form returns junk). Inventory below 5 yrs is thin. |
 | 6 | **Indeed India** | `in.indeed.com/jobs?q=[role]&l=[city]&fromage=7` | Aggregator — catches smaller companies. `fromage` = days old. |
@@ -663,7 +679,7 @@ Whenever `/job-skill status` (or the nightly pipeline) detects rejections via Gm
 ### Phase 1: Search
 - Read `~/.claude/job-skill/profile.json` + `strategy.md` first — they are the memory between firings
 - Spawn ALL applicable parallel scouts (see How Searching Works; `model: sonnet` on every one) for jobs posted in the last 24-48 hours (use each site's freshness filter where it has one)
-- Pass each scout the user's full profile, the exclusion list, AND the list of companies+job IDs already in `job_tracker.xlsx`, so it never re-reports a job the user has already seen
+- Pass each scout the user's full profile and the exclusion list — same tracker-exclusion-set mechanism as interactive `/job-skill search` (see "How Searching Works" above), so it never re-reports a job already tracked at Applied stage or later
 - If Chrome isn't reachable, report that instead of an empty search — don't fabricate listings
 - Score, rank, deduplicate, apply the relevance gate; close every tab opened
 
