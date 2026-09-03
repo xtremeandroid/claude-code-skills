@@ -176,7 +176,7 @@ Every Agent call MUST set the `model` parameter explicitly — never let a subag
 
 1. **Tool loading**, as one call:
    `ToolSearch query "select:mcp__claude-in-chrome__tabs_context_mcp,mcp__claude-in-chrome__navigate,mcp__claude-in-chrome__tabs_create_mcp,mcp__claude-in-chrome__tabs_close_mcp,mcp__claude-in-chrome__get_page_text,mcp__claude-in-chrome__javascript_tool,mcp__claude-in-chrome__browser_batch,mcp__claude-in-chrome__computer"`
-2. **Its own tab**: call `tabs_context_mcp{createIfEmpty:true}`, then `tabs_create_mcp`, then use only that tabId and close it before returning. Scouts sharing a tab will fight each other.
+2. **Its own tab**: call `tabs_context_mcp{createIfEmpty:true}`, then `tabs_create_mcp`, then use only that tabId and close it before returning — and if Chrome auto-created a tab group around it, delete that group too, not just the tab. Scouts sharing a tab will fight each other.
 3. **The user's full profile** — stack, years, target roles, locations. Each scout starts with no context.
 4. **Working URL patterns and how to paginate them** (see Platforms Searched below). Tell it explicitly how many pages deep to go.
 5. **The freshness rule**: use each platform's freshness filter for ≤7 days (LinkedIn `f_TPR=r604800`, Indeed `fromage=7`, in-page filters elsewhere) and **hard-skip any listing older than 7 days** — don't return it at all. Capture the **applicant count** (LinkedIn "X applicants", Naukri applicant counter) and **recruiter activity** ("recruiter recently active", employer last-seen) whenever the page shows them.
@@ -201,6 +201,8 @@ Scouts' plain text output is NOT visible to the orchestrator. Tell each one expl
 
 Get the orchestrator's own name from `ListAgents` (it is named in the first line of the output). Save each part to a file on disk as it arrives — do not try to hold 70 listings in context.
 
+**Cleanup sweep**: once every scout has reported back (or been dropped for timing out), the orchestrator calls `tabs_context_mcp` once to check for anything left open — a scout that crashed or was killed mid-run can leave its tab, and the tab group Chrome auto-created around it, behind. Close any leftover tabs and delete any leftover groups before presenting results. Never leave scout tabs or groups open in the user's browser.
+
 ##### Batching inside a scout
 
 Scouts should use `browser_batch` aggressively — `navigate` + `wait` + `get_page_text` for several pages in a single call. To pull listing URLs and their surrounding text together, `javascript_tool` beats scrolling and re-reading:
@@ -215,7 +217,7 @@ Array.from(document.querySelectorAll('a[href*="/job-"]')).map(a=>{
 Note `read_page` only returns elements currently in the viewport, so it will silently under-report a lazy-loaded list.
 
 **Rules that apply to every scout:**
-- One tab per scout. Close it before returning.
+- One tab per scout. Close it before returning, and delete any tab group Chrome auto-created around it — don't just close the tab and leave an empty-looking group behind.
 - If a platform demands login, shows a CAPTCHA, or blocks the extension: skip it and record why. Never enter credentials, never solve or bypass a CAPTCHA, never create an account.
 - Never trigger `alert`/`confirm` dialogs — avoid Apply, Save, Delete, or anything that mutates the user's account state. This is a read-only crawl.
 - If a platform fails twice, drop it and move on; report it in the skipped list rather than silently omitting it.
@@ -681,7 +683,7 @@ Whenever `/job-skill status` (or the nightly pipeline) detects rejections via Gm
 - Spawn ALL applicable parallel scouts (see How Searching Works; `model: sonnet` on every one) for jobs posted in the last 24-48 hours (use each site's freshness filter where it has one)
 - Pass each scout the user's full profile and the exclusion list — same tracker-exclusion-set mechanism as interactive `/job-skill search` (see "How Searching Works" above), so it never re-reports a job already tracked at Applied stage or later
 - If Chrome isn't reachable, report that instead of an empty search — don't fabricate listings
-- Score, rank, deduplicate, apply the relevance gate; close every tab opened
+- Score, rank, deduplicate, apply the relevance gate; close every tab opened and delete any tab groups left behind (cleanup sweep — see "Collecting results" above)
 
 ### Phase 2: Generate Materials
 - For top matches only (Fitness >= 60%, top ~10 by fitness): generate a tailored cover letter per job
